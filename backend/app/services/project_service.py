@@ -130,12 +130,12 @@ def list_projects() -> List[Dict[str, Any]]:
     result = []
     for r in rows:
         scene_count = conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id = ?", (r["id"],)).fetchone()[0]
-        p = dict(r)
+        p = project_row_to_dict(r)
         p["total_scenes"] = scene_count
-        p["branding"] = json.loads(p.get("branding_json") or "{}")
         result.append(p)
     conn.close()
     return result
+
 
 def update_project(project_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
     conn = get_connection()

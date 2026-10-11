@@ -39,6 +39,13 @@ app.include_router(tts.router)
 app.include_router(render.router)
 app.include_router(system.router)
 
+@app.get("/api/health")
+def api_health():
+    from .services.ffmpeg_utils import check_ffmpeg_available
+    ff = check_ffmpeg_available()
+    return {"status": "healthy" if ff.get("ffmpeg_available") else "degraded", "ffmpeg": ff}
+
 # Mount frontend static files if built
 if STATIC_FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(STATIC_FRONTEND_DIR), html=True), name="frontend")
+
