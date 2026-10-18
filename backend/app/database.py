@@ -97,6 +97,20 @@ def init_db():
         created_at TEXT NOT NULL
     )
     """)
+
+    # Safe column migrations using PRAGMA table_info
+    cursor.execute("PRAGMA table_info(scenes)")
+    scene_cols = [row["name"] for row in cursor.fetchall()]
+    if "layers_json" not in scene_cols:
+        cursor.execute("ALTER TABLE scenes ADD COLUMN layers_json TEXT DEFAULT '[]'")
+    if "custom_segments_json" not in scene_cols:
+        cursor.execute("ALTER TABLE scenes ADD COLUMN custom_segments_json TEXT DEFAULT '[]'")
+
+    cursor.execute("PRAGMA table_info(projects)")
+    proj_cols = [row["name"] for row in cursor.fetchall()]
+    if "pronunciation_dict_json" not in proj_cols:
+        cursor.execute("ALTER TABLE projects ADD COLUMN pronunciation_dict_json TEXT DEFAULT '{}'")
+
     # Safe migration for older project rows with empty or missing subtitle_style_json
     default_sub_json = json.dumps({
         "burn_in": True,
@@ -106,10 +120,16 @@ def init_db():
         "highlight_color": "#FACC15",
         "bg_color": "#000000",
         "bg_opacity": 0.65,
+        "position": "bottom",
         "position_y": "bottom",
+        "x": 0.5,
+        "y": 0.72,
         "max_chars_per_line": 34,
         "safe_margin_pct": 12.0,
-        "mode": "word_highlight"
+        "mode": "word_highlight",
+        "highlight_style": "word_color",
+        "outline_color": "#000000",
+        "outline_width": 2
     })
     cursor.execute("""
         UPDATE projects 

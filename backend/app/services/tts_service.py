@@ -112,6 +112,18 @@ engine.stop()
     if not Path(output_path).exists() or Path(output_path).stat().st_size < 200:
         raise RuntimeError("TTS generation resulted in an empty audio file.")
 
+import re
+
+def apply_pronunciation_overrides(text: str, pronunciation_dict: Optional[Dict[str, str]] = None) -> str:
+    if not text or not pronunciation_dict:
+        return text
+    processed = text
+    for word, replacement in pronunciation_dict.items():
+        if word and replacement:
+            pattern = r'\b' + re.escape(word.strip()) + r'\b'
+            processed = re.sub(pattern, replacement.strip(), processed, flags=re.IGNORECASE)
+    return processed
+
 def generate_speech(
     text: str,
     output_path: str | Path,
@@ -119,7 +131,8 @@ def generate_speech(
     voice_id: Optional[str] = None,
     rate: int = 175,
     volume: int = 100,
-    use_cache: bool = True
+    use_cache: bool = True,
+    pronunciation_dict: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     out_p = Path(output_path)
     out_p.parent.mkdir(parents=True, exist_ok=True)
@@ -141,8 +154,11 @@ def generate_speech(
             "is_silent": True
         }
 
+    # Apply pronunciation overrides
+    effective_text = apply_pronunciation_overrides(clean_text, pronunciation_dict)
+
     # Check cache
-    cache_key = get_cache_key(clean_text, engine, voice_id or "", rate, volume)
+    cache_key = get_cache_key(effective_text, engine, voice_id or "", rate, volume)
     cache_file = CACHE_DIR / f"{cache_key}.wav"
     
     if use_cache and cache_file.exists() and cache_file.stat().st_size > 500:
@@ -164,13 +180,13 @@ def generate_speech(
                 "--model", voice_id,
                 "--output_file", str(cache_file)
             ]
-            res = subprocess.run(cmd, input=clean_text, text=True, capture_output=True, timeout=30)
+            res = subprocess.run(cmd, input=effective_text, text=True, capture_output=True, timeout=30)
             if res.returncode != 0:
                 # Fallback to SAPI
-                _run_pyttsx3_worker(clean_text, str(cache_file), None, rate, volume)
+                _run_pyttsx3_worker(effective_text, str(cache_file), None, rate, volume)
         else:
             # Default to SAPI (pyttsx3 worker)
-            _run_pyttsx3_worker(clean_text, str(cache_file), voice_id, rate, volume)
+            _run_pyttsx3_worker(effective_text, str(cache_file), voice_id, rate, volume)
 
     # Copy cached file to desired destination
     import shutil

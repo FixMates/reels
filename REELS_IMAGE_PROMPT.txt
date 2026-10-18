@@ -1,0 +1,27 @@
+REELS IMAGE PROMPT — matched to this studio
+
+Create one standalone scene image for an educational short-form video.
+
+SCENE INPUTS
+Topic: [TOPIC]
+Scene number and purpose: [SCENE NUMBER + HOOK / CONTEXT / EXPLANATION / EXAMPLE / TAKEAWAY]
+Visual subject/action: [SPECIFIC VISUAL]
+Style and palette: [VISUAL STYLE + COLORS]
+
+CANVAS AND FIT
+- Portrait 9:16 composition, designed for a 1080 × 1920 export.
+- Compose as a full-frame background image. The editor scales this image to the 9:16 canvas; do not make a poster, framed print, phone mockup, collage, or image inside a border.
+- Keep the important subject and any essential visual detail in the central area: roughly x=8–78% and y=14–68% of the canvas. Keep the rightmost 20% and the bottom 30% visually quiet because platform controls and captions occupy them.
+- Preserve useful context to the edges so a small crop or scale adjustment does not cut off the subject. Avoid placing the subject right against an edge.
+- Leave the top 10% clear for the studio's uploaded logo and optional headline. Leave y=70–88% calm and low-detail for timed spoken captions. Leave the bottom 12% clear for the supporting caption and platform interface.
+- Make the scene readable on a phone. Use one clear focal subject, strong separation from the background, and a simple composition. Build the image around the visual idea, not around empty card-shaped UI.
+
+TEXT AND BRANDING
+- Do not render any words, letters, numbers, labels, captions, subtitles, logos, watermarks, UI, borders, or fake brand marks in the image. The studio adds the real headline, supporting caption, spoken subtitles, and uploaded logo as editable overlays.
+- Do not bake text into the background. No faux typography or pseudo-writing.
+
+SCENE QUALITY
+- Create a topic-accurate, visually specific scene with [CINEMATIC REALISM / EDITORIAL ILLUSTRATION / SCIENTIFIC 3D / OTHER].
+- Keep lighting, camera language, color treatment, and visual identity consistent with the other scenes in this video, while changing the composition and action to match this scene's role.
+- Avoid clutter, tiny details, misleading diagrams, distorted objects, accidental duplicate subjects, and decorative elements that resemble text.
+- Return only the image, in portrait 9:16. If exact pixel output is supported, use 1080 × 1920. Do not include a contact sheet.

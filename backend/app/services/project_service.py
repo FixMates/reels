@@ -16,13 +16,18 @@ DEFAULT_SUBTITLE_STYLE: Dict[str, Any] = {
     "font_size": 44,
     "text_color": "#FFFFFF",
     "highlight_color": "#FACC15",
+    "inactive_color": "#FFFFFF",
     "bg_color": "#000000",
     "bg_opacity": 0.65,
     "position": "bottom",
     "position_y": "bottom",
+    "x": 0.5,
+    # Keep burned-in dialogue above the platform's lower caption/handle area.
+    "y": 0.72,
     "max_chars_per_line": 34,
     "safe_margin_pct": 12.0,
     "mode": "word_highlight",
+    "highlight_style": "word_color",
     "outline_color": "#000000",
     "outline_width": 2
 }
@@ -44,7 +49,14 @@ DEFAULT_AUDIO_SETTINGS: Dict[str, Any] = {
     "narration_volume": 1.0,
     "enable_ducking": True,
     "ducking_db": -14.0,
-    "fade_duration": 1.0
+    "duck_attack_ms": 80.0,
+    "duck_release_ms": 350.0,
+    "fade_duration": 1.0,
+    "music_fade_in": 0.5,
+    "music_fade_out": 1.5,
+    "target_lufs": -16.0,
+    "enable_limiter": True,
+    "audio_bitrate": "192k"
 }
 
 def project_row_to_dict(row, scenes=None) -> Dict[str, Any]:
@@ -56,6 +68,7 @@ def project_row_to_dict(row, scenes=None) -> Dict[str, Any]:
     d["branding"] = {**DEFAULT_BRANDING, **stored_branding}
     d["subtitle_style"] = {**DEFAULT_SUBTITLE_STYLE, **stored_subtitles}
     d["audio_settings"] = {**DEFAULT_AUDIO_SETTINGS, **stored_audio}
+    d["pronunciation_dict"] = json.loads(d.get("pronunciation_dict_json") or "{}")
     d["scenes"] = scenes or []
     d["total_scenes"] = len(scenes) if scenes else 0
     d["total_duration"] = sum(s.get("scene_duration", 3.5) for s in d["scenes"] if s.get("is_included", True))
@@ -69,6 +82,62 @@ def scene_row_to_dict(row) -> Dict[str, Any]:
     s["image_url"] = f"/api/media/file?path={s['original_image_path']}"
     s["thumbnail_url"] = f"/api/media/file?path={s['thumbnail_path']}" if s.get("thumbnail_path") else s["image_url"]
     s["audio_url"] = f"/api/media/file?path={s['audio_path']}" if s.get("audio_path") else None
+    
+    # Layers deserialization with safe fallback synthesis
+    raw_layers = json.loads(s.get("layers_json") or "[]")
+    if not raw_layers:
+        synthesized = []
+        if s.get("headline", "").strip():
+            synthesized.append({
+                "id": f"head_{s['id'][:6]}",
+                "type": "headline",
+                "text": s["headline"].strip(),
+                "x": 0.5,
+                "y": 0.12,
+                "w": 0.88,
+                "align": "center",
+                "font_family": "Arial",
+                "font_size": 38,
+                "font_weight": "bold",
+                "color": "#FFFFFF",
+                "bg_color": "#071020",
+                "bg_opacity": 0.85,
+                "bg_padding": 16,
+                "bg_radius": 18,
+                "outline_color": "#38bdf8",
+                "outline_width": 2,
+                "z_index": 2,
+                "is_visible": True,
+                "is_locked": False
+            })
+        if s.get("caption", "").strip():
+            synthesized.append({
+                "id": f"cap_{s['id'][:6]}",
+                "type": "caption",
+                "text": s["caption"].strip(),
+                "x": 0.5,
+                "y": 0.78,
+                "w": 0.88,
+                "align": "center",
+                "font_family": "Arial",
+                "font_size": 32,
+                "font_weight": "bold",
+                "color": "#F1F5F9",
+                "bg_color": "#050A16",
+                "bg_opacity": 0.85,
+                "bg_padding": 14,
+                "bg_radius": 16,
+                "outline_color": "#475569",
+                "outline_width": 1,
+                "z_index": 2,
+                "is_visible": True,
+                "is_locked": False
+            })
+        s["layers"] = synthesized
+    else:
+        s["layers"] = raw_layers
+        
+    s["custom_segments"] = json.loads(s.get("custom_segments_json") or "[]")
     return s
 
 def create_project(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -162,6 +231,9 @@ def update_project(project_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         ):
             fields.append(f"{k} = ?")
             values.append(v)
+        elif k == "pronunciation_dict":
+            fields.append("pronunciation_dict_json = ?")
+            values.append(json.dumps(v if v is not None else {}))
             
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     fields.append("updated_at = ?")
@@ -197,13 +269,13 @@ def duplicate_project(project_id: str) -> Optional[Dict[str, Any]]:
             id, title, created_at, updated_at, aspect_ratio, width, height, fps,
             default_top_text, default_bottom_text, end_padding_seconds, default_scene_duration,
             voice_engine, voice_id, voice_rate, voice_volume, read_mode,
-            branding_json, subtitle_style_json, audio_settings_json,
+            branding_json, subtitle_style_json, audio_settings_json, pronunciation_dict_json,
             transition_type, transition_duration, ken_burns_enabled, progress_bar_enabled
         ) SELECT
             ?, title || ' (Copy)', ?, ?, aspect_ratio, width, height, fps,
             default_top_text, default_bottom_text, end_padding_seconds, default_scene_duration,
             voice_engine, voice_id, voice_rate, voice_volume, read_mode,
-            branding_json, subtitle_style_json, audio_settings_json,
+            branding_json, subtitle_style_json, audio_settings_json, pronunciation_dict_json,
             transition_type, transition_duration, ken_burns_enabled, progress_bar_enabled
         FROM projects WHERE id = ?""",
         (new_pid, now, now, project_id)
@@ -227,8 +299,8 @@ def duplicate_project(project_id: str) -> Optional[Dict[str, Any]]:
                 original_image_path, thumbnail_path, page_number, crop_json,
                 rotation, flip_h, fit_mode, headline, caption, narration_script,
                 voice_override, audio_path, measured_audio_duration, scene_duration,
-                is_included, transition_override
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                is_included, transition_override, layers_json, custom_segments_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 new_sid, new_pid, s["scene_order"], s["item_type"], s["source_filename"],
                 new_img, new_thumb, s.get("page_number"),
@@ -238,7 +310,9 @@ def duplicate_project(project_id: str) -> Optional[Dict[str, Any]]:
                 s.get("narration_script", ""), s.get("voice_override"),
                 new_aud, s.get("measured_audio_duration", 0.0),
                 s.get("scene_duration", 3.5), 1 if s.get("is_included", True) else 0,
-                s.get("transition_override")
+                s.get("transition_override"),
+                json.dumps(s.get("layers")) if s.get("layers") else None,
+                json.dumps(s.get("custom_segments")) if s.get("custom_segments") else None
             )
         )
     conn.commit()
@@ -266,14 +340,16 @@ def add_scenes_to_project(project_id: str, scene_items: List[Dict[str, Any]]) ->
     for item in scene_items:
         sid = uuid.uuid4().hex[:12]
         crop_json = json.dumps(item.get("crop")) if item.get("crop") else None
+        layers_json = json.dumps(item.get("layers")) if item.get("layers") else None
+        custom_segments_json = json.dumps(item.get("custom_segments")) if item.get("custom_segments") else None
         conn.execute(
             """INSERT INTO scenes (
                 id, project_id, scene_order, item_type, source_filename,
                 original_image_path, thumbnail_path, page_number, crop_json,
                 rotation, flip_h, fit_mode, headline, caption, narration_script,
                 voice_override, audio_path, measured_audio_duration, scene_duration,
-                is_included, transition_override
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                is_included, transition_override, layers_json, custom_segments_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 sid,
                 project_id,
@@ -295,7 +371,9 @@ def add_scenes_to_project(project_id: str, scene_items: List[Dict[str, Any]]) ->
                 float(item.get("measured_audio_duration", 0.0)),
                 float(item.get("scene_duration", 3.5)),
                 1 if item.get("is_included", True) else 0,
-                item.get("transition_override")
+                item.get("transition_override"),
+                layers_json,
+                custom_segments_json
             )
         )
         current_order += 1
@@ -314,6 +392,12 @@ def update_scene(scene_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, A
         if k == "crop":
             fields.append("crop_json = ?")
             values.append(json.dumps(v) if v else None)
+        elif k == "layers":
+            fields.append("layers_json = ?")
+            values.append(json.dumps(v) if v is not None else None)
+        elif k == "custom_segments":
+            fields.append("custom_segments_json = ?")
+            values.append(json.dumps(v) if v is not None else None)
         elif k in ("flip_h", "is_included"):
             fields.append(f"{k} = ?")
             values.append(1 if v else 0)
@@ -369,17 +453,22 @@ def duplicate_scene(scene_id: str) -> Optional[Dict[str, Any]]:
             original_image_path, thumbnail_path, page_number, crop_json,
             rotation, flip_h, fit_mode, headline, caption, narration_script,
             voice_override, audio_path, measured_audio_duration, scene_duration,
-            is_included, transition_override
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            is_included, transition_override, layers_json, custom_segments_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             new_sid, s["project_id"], new_order, s["item_type"], s["source_filename"],
             s["original_image_path"], s["thumbnail_path"], s["page_number"],
             s["crop_json"], s["rotation"], s["flip_h"], s["fit_mode"],
             s["headline"], s["caption"], s["narration_script"],
             s["voice_override"], s["audio_path"], s["measured_audio_duration"],
-            s["scene_duration"], s["is_included"], s["transition_override"]
+            s["scene_duration"], s["is_included"], s["transition_override"],
+            s.get("layers_json"), s.get("custom_segments_json")
         )
     )
+    conn.commit()
+    new_row = conn.execute("SELECT * FROM scenes WHERE id = ?", (new_sid,)).fetchone()
+    conn.close()
+    return scene_row_to_dict(new_row)
     conn.commit()
     new_row = conn.execute("SELECT * FROM scenes WHERE id = ?", (new_sid,)).fetchone()
     conn.close()

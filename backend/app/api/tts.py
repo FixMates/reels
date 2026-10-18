@@ -19,6 +19,7 @@ class TTSPreviewRequest(BaseModel):
     voice_id: Optional[str] = None
     rate: int = 175
     volume: int = 100
+    pronunciation_dict: Optional[Dict[str, str]] = None
 
 class SceneTTSRequest(BaseModel):
     scene_id: str
@@ -46,7 +47,8 @@ def preview_voice(req: TTSPreviewRequest):
             voice_id=req.voice_id,
             rate=req.rate,
             volume=req.volume,
-            use_cache=True
+            use_cache=True,
+            pronunciation_dict=req.pronunciation_dict
         )
         return {
             "ok": True,
@@ -88,6 +90,9 @@ def generate_scene_voice(req: SceneTTSRequest):
     volume = req.volume or int(p.get("voice_volume", 100))
     end_padding = float(p.get("end_padding_seconds", 0.7))
     
+    import json
+    pron_dict = json.loads(p.get("pronunciation_dict_json") or "{}") if p.get("pronunciation_dict_json") else (p.get("pronunciation_dict") or {})
+    
     try:
         res = generate_speech(
             text=narration,
@@ -96,7 +101,8 @@ def generate_scene_voice(req: SceneTTSRequest):
             voice_id=voice_id,
             rate=rate,
             volume=volume,
-            use_cache=True
+            use_cache=True,
+            pronunciation_dict=pron_dict
         )
         dur = res["duration"]
         new_scene_dur = round(dur + end_padding, 3)
@@ -133,6 +139,7 @@ def generate_all_voices(project_id: str):
     rate = int(p.get("voice_rate", 175))
     volume = int(p.get("voice_volume", 100))
     end_padding = float(p.get("end_padding_seconds", 0.7))
+    pron_dict = p.get("pronunciation_dict") or {}
     
     for s in scenes:
         narration = (s.get("narration_script") or "").strip()
@@ -148,7 +155,8 @@ def generate_all_voices(project_id: str):
                 voice_id=voice_id,
                 rate=rate,
                 volume=volume,
-                use_cache=True
+                use_cache=True,
+                pronunciation_dict=pron_dict
             )
             dur = res["duration"]
             new_dur = round(dur + end_padding, 3)

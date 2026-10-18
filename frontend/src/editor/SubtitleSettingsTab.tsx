@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Type, Sparkles, Check, Sliders, Eye, RefreshCw, AlertCircle, Save, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { 
+  Type, Sparkles, Check, Sliders, Eye, RefreshCw, AlertCircle, Save, 
+  RotateCcw, ChevronDown, ChevronUp, Download, Upload, Palette, Move 
+} from 'lucide-react';
 import { Project, SubtitleStyleConfig } from '../types/project';
 import { api } from '../api/client';
 
@@ -9,12 +12,18 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
   font_size: 44,
   text_color: '#FFFFFF',
   highlight_color: '#FACC15',
+  inactive_color: '#94A3B8',
+  highlight_style: 'word',
   bg_color: '#000000',
   bg_opacity: 0.65,
   position_y: 'bottom',
+  x: 0.5,
+  y: 0.72,
   max_chars_per_line: 34,
   safe_margin_pct: 12.0,
-  mode: 'word_highlight'
+  mode: 'word_highlight',
+  stroke_color: '#000000',
+  stroke_width: 2
 };
 
 export function normalizeSubtitleStyle(raw?: any): SubtitleStyleConfig {
@@ -27,14 +36,79 @@ export function normalizeSubtitleStyle(raw?: any): SubtitleStyleConfig {
     font_size: typeof raw.font_size === 'number' && !isNaN(raw.font_size) && raw.font_size >= 10 ? raw.font_size : DEFAULT_SUBTITLE_STYLE.font_size,
     text_color: typeof raw.text_color === 'string' && /^#[0-9A-Fa-f]{3,8}$/.test(raw.text_color) ? raw.text_color : DEFAULT_SUBTITLE_STYLE.text_color,
     highlight_color: typeof raw.highlight_color === 'string' && /^#[0-9A-Fa-f]{3,8}$/.test(raw.highlight_color) ? raw.highlight_color : DEFAULT_SUBTITLE_STYLE.highlight_color,
+    inactive_color: typeof raw.inactive_color === 'string' && /^#[0-9A-Fa-f]{3,8}$/.test(raw.inactive_color) ? raw.inactive_color : DEFAULT_SUBTITLE_STYLE.inactive_color,
+    highlight_style: ['karaoke', 'word', 'minimal', 'box'].includes(raw.highlight_style) ? raw.highlight_style : DEFAULT_SUBTITLE_STYLE.highlight_style,
     bg_color: typeof raw.bg_color === 'string' ? raw.bg_color : DEFAULT_SUBTITLE_STYLE.bg_color,
     bg_opacity: typeof raw.bg_opacity === 'number' && !isNaN(raw.bg_opacity) ? raw.bg_opacity : DEFAULT_SUBTITLE_STYLE.bg_opacity,
     position_y: ['bottom', 'center', 'top'].includes(raw.position_y) ? raw.position_y : DEFAULT_SUBTITLE_STYLE.position_y,
+    x: typeof raw.x === 'number' && !isNaN(raw.x) ? raw.x : (DEFAULT_SUBTITLE_STYLE.x ?? 0.5),
+    y: typeof raw.y === 'number' && !isNaN(raw.y) ? raw.y : (raw.position_y === 'top' ? 0.15 : (raw.position_y === 'center' ? 0.50 : 0.72)),
     max_chars_per_line: typeof raw.max_chars_per_line === 'number' && !isNaN(raw.max_chars_per_line) ? raw.max_chars_per_line : DEFAULT_SUBTITLE_STYLE.max_chars_per_line,
     safe_margin_pct: typeof raw.safe_margin_pct === 'number' && !isNaN(raw.safe_margin_pct) ? raw.safe_margin_pct : DEFAULT_SUBTITLE_STYLE.safe_margin_pct,
-    mode: ['word_highlight', 'sentence', 'none'].includes(raw.mode) ? raw.mode : DEFAULT_SUBTITLE_STYLE.mode
+    mode: ['word_highlight', 'karaoke', 'sentence', 'none'].includes(raw.mode) ? raw.mode : DEFAULT_SUBTITLE_STYLE.mode,
+    stroke_color: typeof raw.stroke_color === 'string' ? raw.stroke_color : DEFAULT_SUBTITLE_STYLE.stroke_color,
+    stroke_width: typeof raw.stroke_width === 'number' && !isNaN(raw.stroke_width) ? raw.stroke_width : DEFAULT_SUBTITLE_STYLE.stroke_width
   };
 }
+
+const PRESET_CAPTIONS = [
+  {
+    name: 'Bold Highlight',
+    style: {
+      font_family: 'Impact',
+      font_size: 46,
+      text_color: '#FFFFFF',
+      highlight_color: '#FACC15',
+      inactive_color: '#94A3B8',
+      bg_color: '#000000',
+      bg_opacity: 0.8,
+      mode: 'word_highlight' as const,
+      highlight_style: 'word' as const
+    }
+  },
+  {
+    name: 'Karaoke Glow',
+    style: {
+      font_family: 'Segoe UI',
+      font_size: 44,
+      text_color: '#F8FAFC',
+      highlight_color: '#38BDF8',
+      inactive_color: '#64748B',
+      bg_color: '#070D1E',
+      bg_opacity: 0.85,
+      mode: 'karaoke' as const,
+      highlight_style: 'karaoke' as const
+    }
+  },
+  {
+    name: 'Clean Educational',
+    style: {
+      font_family: 'Arial',
+      font_size: 40,
+      text_color: '#FFFFFF',
+      highlight_color: '#4ADE80',
+      inactive_color: '#CBD5E1',
+      bg_color: '#0F172A',
+      bg_opacity: 0.75,
+      mode: 'word_highlight' as const,
+      highlight_style: 'minimal' as const
+    }
+  },
+  {
+    name: 'High Contrast Dark',
+    style: {
+      font_family: 'Segoe UI',
+      font_size: 42,
+      text_color: '#FFFFFF',
+      highlight_color: '#FB7185',
+      inactive_color: '#94A3B8',
+      bg_color: '#000000',
+      bg_opacity: 0.95,
+      mode: 'sentence' as const,
+      highlight_style: 'box' as const
+    }
+  }
+];
 
 interface SubtitleSettingsTabProps {
   project: Project;
@@ -45,28 +119,16 @@ export const SubtitleSettingsTab: React.FC<SubtitleSettingsTabProps> = ({
   project,
   onProjectUpdate
 }) => {
-  // Normalize safely from incoming project
   const initialStyle = useMemo(() => normalizeSubtitleStyle(project?.subtitle_style), [project?.id]);
-
-  // Live interactive preview state (updates immediately on sliders / color pickers)
   const [style, setStyle] = useState<SubtitleStyleConfig>(initialStyle);
-  
-  // Last saved state on server
   const [savedStyle, setSavedStyle] = useState<SubtitleStyleConfig>(initialStyle);
-  
-  // UI and saving statuses
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Mobile accordion sections
-  const [openSection, setOpenSection] = useState<'mode' | 'typography' | 'colors' | 'position'>('mode');
-
-  // Track latest project ID and active requests to prevent race conditions
   const activeProjectIdRef = useRef(project?.id);
   const isSavingRef = useRef(false);
   const pendingStyleRef = useRef<SubtitleStyleConfig | null>(null);
 
-  // Synchronize state when switching projects or when project loads
   useEffect(() => {
     activeProjectIdRef.current = project?.id;
     const normalized = normalizeSubtitleStyle(project?.subtitle_style);
@@ -76,12 +138,10 @@ export const SubtitleSettingsTab: React.FC<SubtitleSettingsTabProps> = ({
     setErrorMessage(null);
   }, [project?.id]);
 
-  // Check if current preview differs from saved style
   const hasUnsavedChanges = useMemo(() => {
     return JSON.stringify(style) !== JSON.stringify(savedStyle);
   }, [style, savedStyle]);
 
-  // Save changes to backend with race-condition protection
   const executeSave = async (styleToSave: SubtitleStyleConfig) => {
     if (!project?.id) return;
     if (isSavingRef.current) {
@@ -99,22 +159,20 @@ export const SubtitleSettingsTab: React.FC<SubtitleSettingsTabProps> = ({
         subtitle_style: styleToSave
       });
 
-      // Guard against project switch while request was in-flight
       if (activeProjectIdRef.current === targetId) {
         setSavedStyle(styleToSave);
         setSavingStatus('saved');
         onProjectUpdate(updated);
         setTimeout(() => {
           setSavingStatus(prev => prev === 'saved' ? 'idle' : prev);
-        }, 2500);
+        }, 2000);
       }
     } catch (err: any) {
       console.error('Failed to save subtitle style:', err);
       setSavingStatus('error');
-      setErrorMessage(err.message || 'Failed to save settings to server. Please try again.');
+      setErrorMessage(err.message || 'Failed to save settings.');
     } finally {
       isSavingRef.current = false;
-      // If another save was queued during execution, run it now
       if (pendingStyleRef.current) {
         const nextStyle = pendingStyleRef.current;
         pendingStyleRef.current = null;
@@ -123,7 +181,6 @@ export const SubtitleSettingsTab: React.FC<SubtitleSettingsTabProps> = ({
     }
   };
 
-  // Immediate preview update + debounced auto-save
   const updateStyleProp = <K extends keyof SubtitleStyleConfig>(key: K, value: SubtitleStyleConfig[K]) => {
     setStyle(prev => {
       const next = normalizeSubtitleStyle({ ...prev, [key]: value });
@@ -141,347 +198,341 @@ export const SubtitleSettingsTab: React.FC<SubtitleSettingsTabProps> = ({
     executeSave(defaultCopy);
   };
 
-  const handleRevertChanges = () => {
-    setStyle({ ...savedStyle });
-    setSavingStatus('idle');
-    setErrorMessage(null);
+  const snapY = (yVal: number) => {
+    setStyle(prev => ({
+      ...prev,
+      y: yVal,
+      position_y: yVal <= 0.25 ? 'top' : (yVal >= 0.70 ? 'bottom' : 'center')
+    }));
   };
 
-  const modeDisplay = (style.mode || 'word_highlight').replace('_', ' ').toUpperCase();
+  // Export SRT / VTT directly from browser
+  const handleExportSRT = () => {
+    const scenes = project.scenes || [];
+    let lines: string[] = [];
+    let idx = 1;
+    let timeAcc = 0;
+
+    for (const s of scenes) {
+      const dur = s.scene_duration || 3.5;
+      const text = s.narration_script || s.caption || '';
+      if (text.trim()) {
+        const startSec = timeAcc;
+        const endSec = timeAcc + dur;
+        const fmt = (sec: number) => {
+          const h = Math.floor(sec / 3600);
+          const m = Math.floor((sec % 3600) / 60);
+          const sRem = Math.floor(sec % 60);
+          const ms = Math.floor((sec - Math.floor(sec)) * 1000);
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sRem).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+        };
+        lines.push(String(idx++));
+        lines.push(`${fmt(startSec)} --> ${fmt(endSec)}`);
+        lines.push(text.trim());
+        lines.push('');
+      }
+      timeAcc += dur;
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `subtitles_${project.id.slice(0, 8)}.srt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header & Save Status Bar */}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header bar */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-lg">
         <div>
-          <h3 className="font-heading font-bold text-white text-base flex items-center gap-2">
-            <Type className="w-5 h-5 text-sky-400" />
-            <span>Subtitle & Closed Caption Styling</span>
-          </h3>
+          <h2 className="font-heading font-bold text-white text-base flex items-center gap-2">
+            <Type className="w-5 h-5 text-cyan-400" />
+            Caption & Subtitle Studio V2
+          </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Configure dynamic word highlights, fonts, colors, and burned-in captions for maximum viewer retention.
+            Configure free positioning, word highlighting, karaoke sync, and typography.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Burn-in Checkbox */}
-          <label className="flex items-center gap-2 cursor-pointer bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs">
-            <input
-              type="checkbox"
-              checked={style.burn_in}
-              onChange={e => updateStyleProp('burn_in', e.target.checked)}
-              className="w-4 h-4 rounded text-sky-500 focus:ring-0 accent-sky-400"
-            />
-            <span className="font-semibold text-white">Burn Subtitles into MP4</span>
-          </label>
-
-          {/* Save Status / Button */}
-          {hasUnsavedChanges ? (
-            <button
-              type="button"
-              onClick={handleManualSave}
-              disabled={savingStatus === 'saving'}
-              className="px-4 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all active:scale-95 disabled:opacity-50"
-            >
-              {savingStatus === 'saving' ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Save Style</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 text-slate-300 text-xs font-medium border border-slate-700/60">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Saved</span>
-            </div>
-          )}
-
-          {/* Reset / Revert Dropdown Buttons */}
+        <div className="flex items-center gap-2">
           {hasUnsavedChanges && (
-            <button
-              type="button"
-              onClick={handleRevertChanges}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs border border-slate-700 flex items-center gap-1"
-              title="Revert Unsaved Changes"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Revert</span>
-            </button>
+            <span className="text-[11px] text-amber-400 font-mono flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              Unsaved changes
+            </span>
           )}
 
           <button
             type="button"
             onClick={handleResetToDefaults}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs border border-slate-700 flex items-center gap-1"
-            title="Reset to Recommended Defaults"
+            className="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors flex items-center gap-1.5"
+            title="Reset to recommended defaults"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Defaults</span>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleManualSave}
+            disabled={savingStatus === 'saving'}
+            className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-500/25 transition-all disabled:opacity-40"
+          >
+            {savingStatus === 'saving' ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : savingStatus === 'saved' ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                <span>Saved</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                <span>Save Style</span>
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {/* Error Banner with Retry */}
-      {errorMessage && (
-        <div className="p-4 rounded-2xl bg-red-500/15 border border-red-500/40 text-red-300 text-xs flex items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleManualSave}
-            className="px-3 py-1 bg-red-500/30 hover:bg-red-500/40 text-white rounded-lg font-semibold shrink-0"
-          >
-            Retry Save
-          </button>
-        </div>
-      )}
-
-      {/* Main Grid: Live Preview & Mobile Responsive Controls */}
+      {/* Main 2-Column Split: Interactive Preview & Controls */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Live Visual Frame Preview */}
+        {/* Left Column: 9:16 Canvas Simulation */}
         <div className="lg:col-span-5 flex flex-col items-center">
-          <div className="w-full max-w-[320px] sm:max-w-sm aspect-[9/16] relative rounded-3xl overflow-hidden border-2 border-slate-800 bg-slate-950 flex flex-col items-center justify-end p-6 shadow-2xl">
-            {/* Background mockup graphic */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/80 to-slate-950 pointer-events-none" />
+          <div className="w-full max-w-[320px] sm:max-w-sm aspect-[9/16] relative rounded-3xl overflow-hidden border-2 border-slate-800 bg-slate-950 flex flex-col items-center justify-center p-6 shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/70 to-slate-950 pointer-events-none" />
 
-            {/* Subtitle simulation element */}
+            {/* Dynamic Placed Subtitle simulation element */}
             <div
               style={{
-                marginBottom: style.position_y === 'bottom' ? `${style.safe_margin_pct}%` : 'auto',
-                marginTop: style.position_y === 'top' ? `${style.safe_margin_pct}%` : 'auto',
-                alignSelf: 'center',
-                backgroundColor: `rgba(0, 0, 0, ${style.bg_opacity})`,
-                fontFamily: style.font_family,
-                fontSize: `${Math.max(14, Math.round(style.font_size * 0.42))}px`
+                position: 'absolute',
+                left: `${(style.x ?? 0.5) * 100}%`,
+                top: `${(style.y ?? 0.72) * 100}%`,
+                transform: 'translate(-50%, -50%)',
+                backgroundColor: style.bg_opacity > 0 ? style.bg_color : 'transparent',
+                opacity: style.bg_opacity > 0 ? undefined : 1.0,
+                padding: '10px 16px',
+                borderRadius: '14px',
+                borderWidth: `${style.stroke_width || 0}px`,
+                borderColor: style.stroke_color || '#000000',
+                borderStyle: style.stroke_width ? 'solid' : 'none',
+                maxWidth: '85%'
               }}
-              className="relative z-10 px-4 py-2 rounded-xl text-center max-w-[90%] shadow-2xl border border-white/10 backdrop-blur-sm transition-all"
+              className="z-10 text-center shadow-2xl backdrop-blur-md transition-all select-none"
             >
-              {style.mode === 'word_highlight' ? (
-                <div className="font-extrabold tracking-wide uppercase">
-                  <span style={{ color: style.text_color }}>CONFIRM THE </span>
+              {style.mode === 'word_highlight' || style.mode === 'karaoke' ? (
+                <div 
+                  style={{ fontFamily: style.font_family, fontSize: `${Math.max(16, Math.round(style.font_size * 0.42))}px` }}
+                  className="font-extrabold tracking-wide uppercase leading-tight"
+                >
+                  <span style={{ color: style.inactive_color || '#94A3B8' }}>CONFIRM THE </span>
                   <span style={{ color: style.highlight_color }} className="underline decoration-2">BREAK</span>
-                  <span style={{ color: style.text_color }}> OF STRUCTURE</span>
+                  <span style={{ color: style.inactive_color || '#94A3B8' }}> OF STRUCTURE</span>
                 </div>
               ) : (
-                <div className="font-bold tracking-normal" style={{ color: style.text_color }}>
+                <div 
+                  style={{ fontFamily: style.font_family, fontSize: `${Math.max(16, Math.round(style.font_size * 0.42))}px`, color: style.text_color }}
+                  className="font-bold tracking-normal leading-tight"
+                >
                   Confirm the break of structure before entry.
                 </div>
               )}
             </div>
 
-            <span className="relative z-10 text-[10px] text-slate-500 font-mono mt-3">
-              Preview: {modeDisplay} MODE
-            </span>
+            <div className="absolute bottom-4 left-0 right-0 text-center z-10">
+              <span className="text-[10px] text-slate-500 font-mono bg-black/60 px-2 py-0.5 rounded">
+                Position: ({Math.round((style.x ?? 0.5) * 100)}%, {Math.round((style.y ?? 0.72) * 100)}%)
+              </span>
+            </div>
           </div>
 
-          <p className="text-[11px] text-slate-400 mt-2 text-center">
-            Adjusting controls below updates this live preview immediately.
-          </p>
+          {/* Quick Snap Y Buttons */}
+          <div className="w-full max-w-sm mt-3 flex items-center justify-between gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-300">
+            <span className="text-[10px] text-slate-400 font-mono pl-1">Snap:</span>
+            <button onClick={() => snapY(0.14)} className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Top</button>
+            <button onClick={() => snapY(0.30)} className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Upper</button>
+            <button onClick={() => snapY(0.50)} className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Center</button>
+            <button onClick={() => snapY(0.70)} className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Lower</button>
+            <button onClick={() => snapY(0.72)} className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Caption safe</button>
+          </div>
         </div>
 
-        {/* Right Column: Controls grouped into clean responsive cards */}
-        <div className="lg:col-span-7 space-y-4 bg-slate-900/70 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
-          {/* Section 1: Retention Animation Mode */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-              Retention Animation Mode
+        {/* Right Column: Settings & Presets */}
+        <div className="lg:col-span-7 space-y-4 bg-slate-900/70 border border-slate-800 rounded-3xl p-5 shadow-xl text-xs text-slate-300">
+          {/* Preset Buttons */}
+          <div>
+            <label className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Caption Presets
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PRESET_CAPTIONS.map(p => (
+                <button
+                  key={p.name}
+                  onClick={() => {
+                    setStyle(prev => ({ ...prev, ...p.style }));
+                    executeSave({ ...style, ...p.style });
+                  }}
+                  className="px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-slate-200 text-left font-medium transition-all"
+                >
+                  <span className="block font-bold">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Animation & Mode */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3">
+            <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider block">
+              Highlight Animation Mode
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => updateStyleProp('mode', 'word_highlight')}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-2.5 rounded-xl border text-left transition-all ${
                   style.mode === 'word_highlight'
-                    ? 'border-sky-500 bg-sky-500/10 text-white font-semibold shadow-sm'
-                    : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:text-white'
+                    ? 'border-cyan-500 bg-cyan-500/10 text-white font-semibold'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
                 }`}
               >
-                <div className="flex items-center gap-1.5 text-yellow-400 font-bold">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                  <span>Word Highlight Mode</span>
-                </div>
-                <span className="text-[11px] text-slate-400 font-normal block mt-1">
-                  Active words light up dynamically in bright contrast as they are spoken.
-                </span>
+                <div className="text-yellow-400 font-bold">Word Highlight</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Active word lights up</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateStyleProp('mode', 'karaoke')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  style.mode === 'karaoke'
+                    ? 'border-cyan-500 bg-cyan-500/10 text-white font-semibold'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
+                }`}
+              >
+                <div className="text-cyan-400 font-bold">Karaoke Glow</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Dynamic glowing pace</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => updateStyleProp('mode', 'sentence')}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-2.5 rounded-xl border text-left transition-all ${
                   style.mode === 'sentence'
-                    ? 'border-sky-500 bg-sky-500/10 text-white font-semibold shadow-sm'
-                    : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:text-white'
+                    ? 'border-cyan-500 bg-cyan-500/10 text-white font-semibold'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
                 }`}
               >
-                <div className="flex items-center gap-1.5 text-slate-200 font-bold">
-                  <Type className="w-3.5 h-3.5 shrink-0" />
-                  <span>Sentence Block Mode</span>
-                </div>
-                <span className="text-[11px] text-slate-400 font-normal block mt-1">
-                  Clean full sentences timed to spoken narration boundaries.
-                </span>
+                <div className="text-slate-200 font-bold">Sentence Block</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Clean full sentence</div>
               </button>
             </div>
           </div>
 
-          {/* Section 2: Colors */}
+          {/* Free 2D Positioning */}
           <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3">
-            <span className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <Move className="w-3.5 h-3.5 text-cyan-400" />
+              Arbitrary Screen Position (X & Y)
+            </span>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="flex justify-between text-[11px] mb-1">
+                  <span className="text-slate-400">Horizontal X</span>
+                  <span className="font-mono text-cyan-300">{Math.round((style.x ?? 0.5) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="0.9"
+                  step="0.01"
+                  value={style.x ?? 0.5}
+                  onChange={e => updateStyleProp('x', parseFloat(e.target.value))}
+                  className="w-full accent-cyan-400"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-[11px] mb-1">
+                  <span className="text-slate-400">Vertical Y</span>
+                  <span className="font-mono text-cyan-300">{Math.round((style.y ?? 0.72) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.08"
+                  max="0.92"
+                  step="0.01"
+                  value={style.y ?? 0.72}
+                  onChange={e => updateStyleProp('y', parseFloat(e.target.value))}
+                  className="w-full accent-cyan-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Color Palettes (Active vs Inactive vs Background) */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3">
+            <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <Palette className="w-3.5 h-3.5 text-emerald-400" />
               Color Customization
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Primary Text Color
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={style.text_color || '#FFFFFF'}
-                    onChange={e => updateStyleProp('text_color', e.target.value)}
-                    className="w-10 h-10 rounded-xl border border-slate-700 bg-transparent cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={style.text_color || '#FFFFFF'}
-                    onChange={e => updateStyleProp('text_color', e.target.value)}
-                    className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 font-mono text-xs text-white uppercase flex-1 max-w-[120px]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Active Highlight Color
-                </label>
-                <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400 block mb-1">Highlight Color</span>
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl p-1.5">
                   <input
                     type="color"
                     value={style.highlight_color || '#FACC15'}
                     onChange={e => updateStyleProp('highlight_color', e.target.value)}
-                    className="w-10 h-10 rounded-xl border border-slate-700 bg-transparent cursor-pointer"
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
                   />
+                  <span className="font-mono text-[11px] uppercase">{style.highlight_color}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-slate-400 block mb-1">Inactive Word Color</span>
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl p-1.5">
                   <input
-                    type="text"
-                    value={style.highlight_color || '#FACC15'}
-                    onChange={e => updateStyleProp('highlight_color', e.target.value)}
-                    className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 font-mono text-xs text-white uppercase flex-1 max-w-[120px]"
+                    type="color"
+                    value={style.inactive_color || '#94A3B8'}
+                    onChange={e => updateStyleProp('inactive_color', e.target.value)}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
                   />
+                  <span className="font-mono text-[11px] uppercase">{style.inactive_color}</span>
                 </div>
-              </div>
-            </div>
-
-            {/* Background Box Opacity */}
-            <div className="pt-2 border-t border-slate-800/60">
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                <span>Caption Box Background Opacity</span>
-                <span className="font-mono text-sky-400 font-bold">{Math.round(style.bg_opacity * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.0"
-                max="1.0"
-                step="0.05"
-                value={style.bg_opacity}
-                onChange={e => updateStyleProp('bg_opacity', parseFloat(e.target.value))}
-                className="w-full accent-sky-400"
-              />
-            </div>
-          </div>
-
-          {/* Section 3: Typography */}
-          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3">
-            <span className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-              Typography & Sizing
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Font Family
-                </label>
-                <select
-                  value={style.font_family || 'Arial'}
-                  onChange={e => updateStyleProp('font_family', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-400"
-                >
-                  <option value="Arial">Arial (Universal Clean)</option>
-                  <option value="Segoe UI">Segoe UI (Modern Sans)</option>
-                  <option value="Trebuchet MS">Trebuchet MS (Friendly)</option>
-                  <option value="Impact">Impact (Punchy Reel)</option>
-                </select>
               </div>
 
               <div>
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                  <span>Font Size</span>
-                  <span className="font-mono text-sky-400 font-bold">{style.font_size}px</span>
+                <span className="text-[10px] text-slate-400 block mb-1">Badge Background</span>
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl p-1.5">
+                  <input
+                    type="color"
+                    value={style.bg_color || '#000000'}
+                    onChange={e => updateStyleProp('bg_color', e.target.value)}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                  />
+                  <span className="font-mono text-[11px] uppercase">{style.bg_color}</span>
                 </div>
-                <input
-                  type="range"
-                  min="28"
-                  max="64"
-                  step="2"
-                  value={style.font_size}
-                  onChange={e => updateStyleProp('font_size', parseInt(e.target.value))}
-                  className="w-full accent-sky-400"
-                />
               </div>
             </div>
           </div>
 
-          {/* Section 4: Position & Safe Margin */}
-          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3">
-            <span className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-              Screen Placement & Margins
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Vertical Position
-                </label>
-                <div className="grid grid-cols-3 gap-1 text-xs">
-                  {(['bottom', 'center', 'top'] as const).map(pos => (
-                    <button
-                      key={pos}
-                      type="button"
-                      onClick={() => updateStyleProp('position_y', pos)}
-                      className={`py-2 rounded-xl capitalize font-medium transition-colors ${
-                        style.position_y === pos
-                          ? 'bg-sky-500 text-slate-950 font-bold shadow-sm'
-                          : 'bg-slate-900 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {pos}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                  <span>Vertical Margin</span>
-                  <span className="font-mono text-sky-400 font-bold">{style.safe_margin_pct}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="4"
-                  max="28"
-                  step="1"
-                  value={style.safe_margin_pct}
-                  onChange={e => updateStyleProp('safe_margin_pct', parseFloat(e.target.value))}
-                  className="w-full accent-sky-400"
-                />
-              </div>
-            </div>
+          {/* Subtitle File Export Actions */}
+          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+            <span className="text-slate-400">Export timed subtitle file:</span>
+            <button
+              onClick={handleExportSRT}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Download SRT</span>
+            </button>
           </div>
         </div>
       </div>

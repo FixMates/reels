@@ -125,6 +125,7 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
         all_subtitles = timeline["subtitles"]
         
         # 4. Compose Slides
+        burn_subs = options.get("burn_subtitles", True) and bool(all_subtitles) and subtitle_style.get("burn_in", True)
         update_job_status(job_id, 45, "composition", "Composing visual slides and branding...")
         slide_paths = []
         
@@ -135,6 +136,15 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
 
             slide_out = job_dir / f"slide_{idx:03d}.png"
             crop_dict = json.loads(s.get("crop_json")) if s.get("crop_json") else None
+            layers_list = json.loads(s.get("layers_json")) if s.get("layers_json") else None
+            
+            # If scene has a caption/subtitle layer, synchronize subtitle_style coordinates
+            if layers_list:
+                for lyr in layers_list:
+                    if lyr.get("type") in ("caption", "subtitle") and lyr.get("visible", True):
+                        subtitle_style["x"] = lyr.get("x", subtitle_style.get("x", 0.5))
+                        subtitle_style["y"] = lyr.get("y", subtitle_style.get("y", 0.72))
+                        break
             
             # Resolve original image path
             orig_img_p = Path(s["original_image_path"])
@@ -153,7 +163,9 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
                 headline=s.get("headline", "") or project.get("default_top_text", ""),
                 caption=s.get("caption", "") or project.get("default_bottom_text", ""),
                 branding=branding,
-                logo_path=branding.get("logo_path")
+                logo_path=branding.get("logo_path"),
+                layers=layers_list,
+                skip_caption_layers=burn_subs
             )
             slide_paths.append(str(slide_out))
 
@@ -246,7 +258,11 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
             bgm_vol=float(audio_settings.get("bgm_volume", 0.25)),
             enable_ducking=bool(audio_settings.get("enable_ducking", True)),
             ducking_db=float(audio_settings.get("ducking_db", -14.0)),
-            fade_duration=float(audio_settings.get("fade_duration", 1.0))
+            fade_duration=float(audio_settings.get("fade_duration", 1.0)),
+            ducking_attack_ms=float(audio_settings.get("ducking_attack_ms", 80.0)),
+            ducking_release_ms=float(audio_settings.get("ducking_release_ms", 350.0)),
+            target_lufs=float(audio_settings.get("target_lufs", -16.0)) if audio_settings.get("target_lufs") is not None else -16.0,
+            enable_limiter=bool(audio_settings.get("enable_limiter", True))
         )
 
         # 9. Final Mux & Subtitle Burn-In

@@ -178,18 +178,24 @@ def export_subtitles_ass(
     font_size = int(style.get("font_size", 46))
     primary_col = hex_to_ass_color(style.get("text_color", "#FFFFFF"), 0)
     highlight_col = hex_to_ass_color(style.get("highlight_color", "#FACC15"), 0)
+    inactive_col = hex_to_ass_color(style.get("inactive_color", style.get("text_color", "#FFFFFF")), 0)
     bg_col = hex_to_ass_color(style.get("bg_color", "#000000"), int((1.0 - style.get("bg_opacity", 0.75)) * 255))
-    outline_col = "&H00000000"
+    outline_col = hex_to_ass_color(style.get("stroke_color", "#000000"), 0)
+    outline_w = int(style.get("stroke_width", 3))
     
-    pos_y = style.get("position_y", "bottom")
-    alignment = 2  # bottom center
-    margin_v = int(height * 0.14)
-    if pos_y == "center":
-        alignment = 5
-        margin_v = 0
-    elif pos_y == "top":
-        alignment = 8
-        margin_v = int(height * 0.14)
+    # Determine exact position tag for true preview-to-export parity
+    if "x" in style and "y" in style and style["x"] is not None and style["y"] is not None:
+        pos_x_px = int(float(style["x"]) * width)
+        pos_y_px = int(float(style["y"]) * height)
+        pos_tag = f"{{\\an5\\pos({pos_x_px},{pos_y_px})}}"
+    else:
+        pos_y = style.get("position_y", "bottom")
+        if pos_y == "center":
+            pos_tag = f"{{\\an5\\pos({width//2},{height//2})}}"
+        elif pos_y == "top":
+            pos_tag = f"{{\\an8\\pos({width//2},{int(height * 0.15)})}}"
+        else: # bottom
+            pos_tag = f"{{\\an5\\pos({width//2},{int(height * 0.72)})}}"
         
     margin_lr = int(width * 0.08)
     
@@ -203,8 +209,8 @@ PlayResY: {height}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},{primary_col},{highlight_col},{outline_col},{bg_col},-1,0,0,0,100,100,0,0,3,10,3,{alignment},{margin_lr},{margin_lr},{margin_v},1
-Style: Highlight,{font_name},{font_size},{highlight_col},{primary_col},{outline_col},{bg_col},-1,0,0,0,100,100,0,0,3,10,3,{alignment},{margin_lr},{margin_lr},{margin_v},1
+Style: Default,{font_name},{font_size},{primary_col},{highlight_col},{outline_col},{bg_col},-1,0,0,0,100,100,0,0,3,{outline_w},3,5,{margin_lr},{margin_lr},0,1
+Style: Highlight,{font_name},{font_size},{highlight_col},{primary_col},{outline_col},{bg_col},-1,0,0,0,100,100,0,0,3,{outline_w},3,5,{margin_lr},{margin_lr},0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -217,22 +223,62 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         end_str = format_timestamp_ass(sub["end"])
         
         # Word highlight animation
-        if mode == "word_highlight" and sub.get("words"):
-            # Emit per word sub-segment highlighting current word
+        if mode in ("word_highlight", "karaoke") and sub.get("words"):
             for w_idx, w_item in enumerate(sub["words"]):
                 w_start = format_timestamp_ass(w_item["start"])
                 w_end = format_timestamp_ass(w_item["end"])
-                # Construct sentence with highlighted word
                 styled_parts = []
                 for other_idx, other_item in enumerate(sub["words"]):
                     if other_idx == w_idx:
-                        styled_parts.append(f"{{\\c{highlight_col}}}{other_item['word']}{{\\c{primary_col}}}")
+                        styled_parts.append(f"{{\\c{highlight_col}}}{other_item['word']}{{\\c{inactive_col}}}")
                     else:
-                        styled_parts.append(other_item['word'])
-                styled_text = " ".join(styled_parts)
+                        styled_parts.append(f"{{\\c{inactive_col}}}{other_item['word']}")
+                styled_text = f"{pos_tag} " + " ".join(styled_parts)
                 events.append(f"Dialogue: 0,{w_start},{w_end},Default,,0,0,0,,{styled_text}")
         else:
-            events.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{sub['text']}")
+            events.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{pos_tag} {sub['text']}")
             
     content = header + "\n".join(events) + "\n"
     path.write_text(content, encoding="utf-8")
+
+def parse_time_str(ts: str) -> float:
+    ts = ts.strip().replace(",", ".")
+    parts = ts.split(":")
+    if len(parts) == 3:
+        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+    elif len(parts) == 2:
+        return float(parts[0]) * 60 + float(parts[1])
+    return float(parts[0])
+
+def parse_srt_or_vtt(content: str) -> List[Dict[str, Any]]:
+    segments = []
+    blocks = re.split(r'\n\s*\n', content.strip())
+    for b in blocks:
+        lines = [line.strip() for line in b.splitlines() if line.strip()]
+        if not lines:
+            continue
+        if lines[0].startswith("WEBVTT"):
+            lines.pop(0)
+            if not lines:
+                continue
+        # Find line with timestamp arrow -->
+        time_idx = -1
+        for i, l in enumerate(lines):
+            if "-->" in l:
+                time_idx = i
+                break
+        if time_idx != -1:
+            t_line = lines[time_idx]
+            m = re.match(r'([\d:.,]+)\s*-->\s*([\d:.,]+)', t_line)
+            if m:
+                st = parse_time_str(m.group(1))
+                et = parse_time_str(m.group(2))
+                text_lines = lines[time_idx+1:]
+                text = " ".join(text_lines)
+                segments.append({
+                    "start": round(st, 3),
+                    "end": round(et, 3),
+                    "text": text,
+                    "words": []
+                })
+    return segments

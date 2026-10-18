@@ -165,7 +165,7 @@ export const AudioMixerTab: React.FC<AudioMixerTabProps> = ({
           </div>
 
           {/* Smart Audio Ducking Toggle */}
-          <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-800/40 space-y-2">
+          <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-800/40 space-y-3">
             <label className="flex items-center justify-between cursor-pointer">
               <span className="font-semibold text-purple-200 text-xs flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -179,8 +179,82 @@ export const AudioMixerTab: React.FC<AudioMixerTabProps> = ({
               />
             </label>
             <p className="text-[11px] text-purple-300/80 leading-relaxed">
-              Dynamically compresses BGM by -14 dB whenever the narration is speaking, ensuring voice clarity, and smoothly restores volume during pauses.
+              Dynamically compresses BGM whenever narration speaks, ensuring voice clarity, and smoothly restores volume during pauses.
             </p>
+
+            {audioSettings.enable_ducking && (
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-purple-800/30">
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1 text-purple-300">
+                    <span>Attack ({audioSettings.ducking_attack_ms || 80}ms)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="20"
+                    max="200"
+                    step="10"
+                    value={audioSettings.ducking_attack_ms || 80}
+                    onChange={e => handleSave({ ...audioSettings, ducking_attack_ms: parseInt(e.target.value) })}
+                    className="w-full accent-purple-400"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1 text-purple-300">
+                    <span>Release ({audioSettings.ducking_release_ms || 350}ms)</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="100"
+                    max="800"
+                    step="25"
+                    value={audioSettings.ducking_release_ms || 350}
+                    onChange={e => handleSave({ ...audioSettings, ducking_release_ms: parseInt(e.target.value) })}
+                    className="w-full accent-purple-400"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Social Video Loudness Normalization & Peak Limiter */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-200 text-xs flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                Loudness Normalization & Limiter
+              </span>
+              <span className="text-[10px] text-cyan-400 font-mono">EBU R128</span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Target Loudness:</span>
+                <span className="font-mono font-bold text-cyan-300">
+                  {audioSettings.target_lufs ?? -16.0} LUFS (Social Video Standard)
+                </span>
+              </div>
+              <input
+                type="range"
+                min="-24.0"
+                max="-12.0"
+                step="1.0"
+                value={audioSettings.target_lufs ?? -16.0}
+                onChange={e => handleSave({ ...audioSettings, target_lufs: parseFloat(e.target.value) })}
+                className="w-full accent-cyan-400"
+              />
+            </div>
+
+            <label className="flex items-center justify-between pt-2 border-t border-slate-800 cursor-pointer">
+              <span className="text-xs text-slate-300">
+                Anti-Clipping True Peak Limiter (0.95 peak ceiling)
+              </span>
+              <input
+                type="checkbox"
+                checked={audioSettings.enable_limiter !== false}
+                onChange={e => handleSave({ ...audioSettings, enable_limiter: e.target.checked })}
+                className="w-4 h-4 rounded text-cyan-500"
+              />
+            </label>
           </div>
         </div>
       </div>

@@ -58,7 +58,11 @@ def mix_master_audio(
     bgm_vol: float = 0.25,
     enable_ducking: bool = True,
     ducking_db: float = -14.0,
-    fade_duration: float = 1.0
+    fade_duration: float = 1.0,
+    ducking_attack_ms: float = 80.0,
+    ducking_release_ms: float = 350.0,
+    target_lufs: Optional[float] = -16.0,
+    enable_limiter: bool = True
 ) -> str:
     out_p = Path(output_path)
     out_p.parent.mkdir(parents=True, exist_ok=True)
@@ -79,26 +83,39 @@ def mix_master_audio(
     ]
     subprocess.run(cmd_concat, check=True)
 
+    # Post-processing chain (loudness normalization and peak limiter)
+    post_chain = []
+    if target_lufs is not None:
+        post_chain.append(f"loudnorm=I={target_lufs:.1f}:TP=-1.5:LRA=11")
+    if enable_limiter:
+        post_chain.append("alimiter=limit=0.95:attack=5:release=50")
+
     # Step 2: Mix with BGM if provided and exists
     if bgm_path and Path(bgm_path).exists():
         fade_st = max(0.0, total_duration - fade_duration)
+        att = max(10.0, float(ducking_attack_ms))
+        rel = max(50.0, float(ducking_release_ms))
         
         # Audio filter graph with sidechain ducking and volume adjustments
         if enable_ducking:
             filter_graph = (
                 f"[0:a]volume={narration_vol:.2f},aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[narr];"
                 f"[1:a]volume={bgm_vol:.2f},aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[bgm_in];"
-                f"[bgm_in][narr]sidechaincompress=threshold=0.07:ratio=6:attack=80:release=350[ducked_bgm];"
+                f"[bgm_in][narr]sidechaincompress=threshold=0.07:ratio=6:attack={att:.0f}:release={rel:.0f}[ducked_bgm];"
                 f"[narr][ducked_bgm]amix=inputs=2:duration=first:dropout_transition=2[mixed];"
-                f"[mixed]afade=t=out:st={fade_st:.2f}:d={fade_duration:.2f}[outa]"
+                f"[mixed]afade=t=out:st={fade_st:.2f}:d={fade_duration:.2f}"
             )
         else:
             filter_graph = (
                 f"[0:a]volume={narration_vol:.2f}[narr];"
                 f"[1:a]volume={bgm_vol:.2f}[bgm_in];"
                 f"[narr][bgm_in]amix=inputs=2:duration=first:dropout_transition=2[mixed];"
-                f"[mixed]afade=t=out:st={fade_st:.2f}:d={fade_duration:.2f}[outa]"
+                f"[mixed]afade=t=out:st={fade_st:.2f}:d={fade_duration:.2f}"
             )
+            
+        if post_chain:
+            filter_graph += "," + ",".join(post_chain)
+        filter_graph += "[outa]"
             
         cmd_mix = [
             ffmpeg, "-y", "-loglevel", "error",
@@ -112,11 +129,14 @@ def mix_master_audio(
         ]
         subprocess.run(cmd_mix, check=True)
     else:
-        # No BGM - adjust narration volume and encode
+        solo_filters = [f"volume={narration_vol:.2f}"]
+        if post_chain:
+            solo_filters.extend(post_chain)
+            
         cmd_solo = [
             ffmpeg, "-y", "-loglevel", "error",
             "-i", str(narr_unified),
-            "-af", f"volume={narration_vol:.2f}",
+            "-af", ",".join(solo_filters),
             "-t", f"{total_duration:.3f}",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
             str(out_p)

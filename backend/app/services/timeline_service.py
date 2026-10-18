@@ -46,7 +46,36 @@ def compute_timeline(
         
         # Generate subtitles for this scene
         scene_subs = []
-        if narration and audio_dur > 0:
+        custom_segs = scene.get("custom_segments")
+        if not custom_segs and scene.get("custom_segments_json"):
+            try:
+                import json
+                custom_segs = json.loads(scene["custom_segments_json"])
+            except Exception:
+                custom_segs = None
+
+        if custom_segs and len(custom_segs) > 0:
+            for seg in custom_segs:
+                seg_st = round(start_time + float(seg.get("start", 0.0)), 3)
+                seg_et = round(start_time + float(seg.get("end", audio_dur or duration)), 3)
+                words = seg.get("words", [])
+                abs_words = []
+                for w in words:
+                    abs_words.append({
+                        "word": w.get("word", ""),
+                        "start": round(start_time + float(w.get("start", 0.0)), 3),
+                        "end": round(start_time + float(w.get("end", 0.0)), 3)
+                    })
+                sub_entry = {
+                    "start": seg_st,
+                    "end": seg_et,
+                    "text": seg.get("text", ""),
+                    "words": abs_words,
+                    "timing_type": "custom"
+                }
+                scene_subs.append(sub_entry)
+                all_subtitles.append(sub_entry)
+        elif narration and audio_dur > 0:
             scene_subs = generate_scene_subtitles(
                 scene_start_time=start_time,
                 audio_duration=audio_dur,

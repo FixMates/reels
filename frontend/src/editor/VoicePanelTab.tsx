@@ -218,7 +218,7 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
             <button
               onClick={handlePreviewVoice}
               disabled={isPreviewing}
-              className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
             >
               {isPreviewing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
               <span>Test Voice Sample</span>
@@ -227,6 +227,84 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
             {previewAudioUrl && (
               <AudioWaveformPlayer src={previewAudioUrl} label="Voice Sample Test" />
             )}
+          </div>
+
+          {/* Pronunciation Dictionary */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                Pronunciation Dictionary
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {Object.keys(project.pronunciation_dict || {}).length} rules
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-tight">
+              Override technical terms, tickers, and abbreviations so local TTS pronounces them accurately.
+            </p>
+
+            {/* List current overrides */}
+            {project.pronunciation_dict && Object.keys(project.pronunciation_dict).length > 0 && (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                {Object.entries(project.pronunciation_dict).map(([term, replacement]) => (
+                  <div key={term} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+                    <div>
+                      <span className="font-mono text-cyan-300 font-semibold">{term}</span>
+                      <span className="text-slate-500 mx-1.5">➔</span>
+                      <span className="text-slate-200">{replacement}</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const updatedDict = { ...(project.pronunciation_dict || {}) };
+                        delete updatedDict[term];
+                        const updated = await api.updateProject(project.id, { pronunciation_dict: updatedDict });
+                        onProjectUpdate(updated);
+                      }}
+                      className="text-slate-500 hover:text-red-400 text-xs px-1"
+                      title="Remove Rule"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add new rule */}
+            <div className="flex gap-2">
+              <input
+                id="pron_term_input"
+                type="text"
+                placeholder="Term (e.g. BTC)"
+                className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white"
+              />
+              <input
+                id="pron_repl_input"
+                type="text"
+                placeholder="Say as (e.g. Bitcoin)"
+                className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const tInput = document.getElementById('pron_term_input') as HTMLInputElement;
+                  const rInput = document.getElementById('pron_repl_input') as HTMLInputElement;
+                  if (!tInput?.value.trim() || !rInput?.value.trim()) return;
+                  const updatedDict = {
+                    ...(project.pronunciation_dict || {}),
+                    [tInput.value.trim()]: rInput.value.trim()
+                  };
+                  tInput.value = '';
+                  rInput.value = '';
+                  const updated = await api.updateProject(project.id, { pronunciation_dict: updatedDict });
+                  onProjectUpdate(updated);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-bold text-xs hover:bg-cyan-400 transition-colors"
+              >
+                Add
+              </button>
+            </div>
           </div>
         </div>
 

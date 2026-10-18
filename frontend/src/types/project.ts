@@ -16,18 +16,72 @@ export interface BrandingConfig {
   watermark_opacity?: number;
 }
 
+export interface OverlayLayer {
+  id: string;
+  type: 'headline' | 'heading' | 'caption' | 'subtitle' | 'word_highlight' | 'callout' | 'label' | 'text' | 'branding' | 'cta' | 'end_card';
+  text: string;
+  x: number; // normalized [0.0 - 1.0] center coordinate
+  y: number; // normalized [0.0 - 1.0] center coordinate
+  width: number; // normalized width [0.05 - 1.0]
+  height?: number;
+  font_family: string;
+  font_size: number;
+  font_weight: 'normal' | 'bold';
+  italic?: boolean;
+  underline?: boolean;
+  text_transform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  text_color: string;
+  text_opacity: number;
+  bg_color: string;
+  bg_opacity: number;
+  bg_padding: number;
+  border_radius: number;
+  stroke_color: string;
+  stroke_width: number;
+  shadow_color?: string;
+  shadow_blur?: number;
+  shadow_offset_x?: number;
+  shadow_offset_y?: number;
+  text_align: 'left' | 'center' | 'right';
+  rotation: number;
+  visible: boolean;
+  locked: boolean;
+  z_index: number;
+}
+
+export interface CaptionWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export interface CaptionSegment {
+  id?: string;
+  start: number;
+  end: number;
+  text: string;
+  words?: CaptionWord[];
+  timing_type?: string;
+}
+
 export interface SubtitleStyleConfig {
   burn_in: boolean;
   font_family: string;
   font_size: number;
   text_color: string;
   highlight_color: string;
+  inactive_color?: string;
+  highlight_style?: 'karaoke' | 'word' | 'minimal' | 'box';
   bg_color: string;
   bg_opacity: number;
-  position_y: 'bottom' | 'center' | 'top';
+  position_y?: 'bottom' | 'center' | 'top';
+  x?: number;
+  y?: number;
   max_chars_per_line: number;
   safe_margin_pct: number;
-  mode: 'sentence' | 'word_highlight' | 'none';
+  mode: 'sentence' | 'word_highlight' | 'karaoke' | 'none';
+  stroke_color?: string;
+  stroke_width?: number;
 }
 
 export interface AudioSettingsConfig {
@@ -37,6 +91,10 @@ export interface AudioSettingsConfig {
   enable_ducking: boolean;
   ducking_db: number;
   fade_duration: number;
+  ducking_attack_ms?: number;
+  ducking_release_ms?: number;
+  target_lufs?: number;
+  enable_limiter?: boolean;
 }
 
 export interface Scene {
@@ -64,6 +122,8 @@ export interface Scene {
   image_url: string;
   thumbnail_url: string;
   audio_url?: string | null;
+  layers?: OverlayLayer[];
+  custom_segments?: CaptionSegment[];
   // Computed on timeline
   start_time?: number;
   end_time?: number;
@@ -92,6 +152,7 @@ export interface Project {
   branding: BrandingConfig;
   subtitle_style: SubtitleStyleConfig;
   audio_settings: AudioSettingsConfig;
+  pronunciation_dict?: Record<string, string>;
   transition_type: string;
   transition_duration: number;
   ken_burns_enabled: boolean;
