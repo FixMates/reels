@@ -6,6 +6,7 @@ import { SystemHealthModal } from './components/SystemHealthModal';
 import { NewProjectModal } from './pages/NewProjectModal';
 import { DashboardPage } from './pages/DashboardPage';
 import { StudioPage } from './pages/StudioPage';
+import { AIVideoModal } from './pages/AIVideoModal';
 
 export function App() {
   const [currentView, setCurrentView] = useState<'dashboard' | 'studio'>('dashboard');
@@ -13,6 +14,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<string>('browser');
   const [isHealthOpen, setIsHealthOpen] = useState(false);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [isAIVideoOpen, setIsAIVideoOpen] = useState(false);
   const [health, setHealth] = useState<SystemHealth | null>(null);
 
   const refreshHealth = async () => {
@@ -63,6 +65,7 @@ export function App() {
         {currentView === 'dashboard' && (
           <DashboardPage
             onOpenNewProjectModal={() => setIsNewProjectOpen(true)}
+            onCreateWithAI={() => setIsAIVideoOpen(true)}
             onOpenProject={handleOpenProject}
             onOpenHealth={() => setIsHealthOpen(true)}
             health={health}
@@ -92,6 +95,13 @@ export function App() {
         isOpen={isNewProjectOpen}
         onClose={() => setIsNewProjectOpen(false)}
         onProjectCreated={handleProjectCreated}
+      />
+
+      <AIVideoModal
+        isOpen={isAIVideoOpen}
+        onClose={() => setIsAIVideoOpen(false)}
+        onOpenProject={handleOpenProject}
+        geminiConfigured={Boolean(health?.gemini?.configured)}
       />
     </div>
   );

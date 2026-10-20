@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Upload, Film, FileText, Image as ImageIcon, Copy, Trash2, ArrowRight, Play, Download, Clock, HardDrive, CheckCircle2, AlertTriangle, Activity, Edit3, X, Check } from 'lucide-react';
+import { Plus, Upload, Film, FileText, Image as ImageIcon, Copy, Trash2, ArrowRight, Play, Download, Clock, HardDrive, CheckCircle2, AlertTriangle, Activity, Edit3, X, Check, Sparkles } from 'lucide-react';
 import { Project, ExportRecord, SystemHealth } from '../types/project';
 import { api } from '../api/client';
 
 interface DashboardPageProps {
   onOpenNewProjectModal: () => void;
+  onCreateWithAI: () => void;
   onOpenProject: (projectId: string) => void;
   onOpenHealth: () => void;
   health: SystemHealth | null;
@@ -12,6 +13,7 @@ interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenNewProjectModal,
+  onCreateWithAI,
   onOpenProject,
   onOpenHealth,
   health
@@ -107,6 +109,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             >
               <Plus className="w-4 h-4" />
               <span>Create New Project</span>
+            </button>
+
+            <button
+              onClick={onCreateWithAI}
+              className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-heading font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-fuchsia-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Create Reel with Gemini</span>
             </button>
 
             <button

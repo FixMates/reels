@@ -2,7 +2,38 @@ import { Project, Scene, TTSVoice, RenderStatus, SystemHealth, ExportRecord } fr
 
 const API_BASE = '/api';
 
+export interface AIVideoJob {
+  job_id: string;
+  status: 'running' | 'completed' | 'failed';
+  progress_pct: number;
+  stage: string;
+  message: string;
+  project_id?: string | null;
+  video_title?: string;
+  video_duration?: number;
+  download_url?: string | null;
+  error?: string | null;
+  content_package?: { video_description?: string; hashtags?: string[]; sources?: Array<{ title: string; url: string }> };
+}
+
 export const api = {
+  async createAIVideo(data: { topic: string; title?: string; audience: string; language: string; style: string }): Promise<{ ok: boolean; job_id: string }> {
+    const res = await fetch(`${API_BASE}/ai-video/create`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Could not start AI video generation');
+    }
+    return res.json();
+  },
+
+  async getAIVideoStatus(jobId: string): Promise<AIVideoJob> {
+    const res = await fetch(`${API_BASE}/ai-video/status/${jobId}`);
+    if (!res.ok) throw new Error('Could not retrieve AI video progress');
+    return res.json();
+  },
+
   // System Health
   async getSystemHealth(): Promise<SystemHealth> {
     const res = await fetch(`${API_BASE}/system/health`);

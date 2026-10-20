@@ -53,6 +53,13 @@ The starter reference (`pdf_to_reels_engine`) provided a basic proof-of-concept 
 
 ## 3. Quickstart & Windows Launch
 
+### Automated Gemini Video Generation
+From the dashboard, choose **Create Reel with Gemini**, enter a topic, and start the workflow. Gemini creates a grounded seven-scene script and seven 9:16 scene images. The server fits images to exactly 1080 × 1920, adds editable top headlines and supporting captions, generates narration with the installed local TTS engine, and renders an MP4 with burned-in subtitles. The result opens in the studio for edits; the MP4 and copy package are available from the completion screen and project folder.
+
+Configure `GEMINI_API_KEY` on the server. For local use, copy `.env.example` to `.env` and paste the key in that file. For Render, add `GEMINI_API_KEY` under **Dashboard → your service → Environment**, then redeploy. The key stays server-side and is never entered into the browser. Optional `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` settings are documented in `.env.example`.
+
+The process uses one text generation, seven image generations, local narration, and one render. Gemini API usage can incur charges. The app's job progress is held in server memory while processing; a server restart interrupts an active job. This app has no sign-in, so put a public deployment behind access control before enabling the generation endpoint.
+
 ### Option A: Launch with 1-Click Batch Script
 Double-click `launch_studio.bat` in the project root:
 ```bat

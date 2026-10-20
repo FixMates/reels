@@ -6,6 +6,7 @@ from typing import Dict, Any
 from ..services.ffmpeg_utils import check_ffmpeg_available
 from ..services.tts_service import get_available_voices
 from ..services.project_service import get_storage_stats, clear_temp_files
+from ..config import GEMINI_API_KEY
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -28,6 +29,7 @@ def system_health() -> Dict[str, Any]:
             "voices": voices
         },
         "storage": storage,
+        "gemini": {"configured": bool(GEMINI_API_KEY)},
         "platform": {
             "os": platform.system(),
             "os_release": platform.release(),

@@ -213,6 +213,7 @@ export interface SystemHealth {
     cache_storage_bytes: number;
     exports_storage_bytes: number;
   };
+  gemini?: { configured: boolean };
   platform: {
     os: string;
     os_release: string;

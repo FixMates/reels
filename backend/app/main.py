@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
 from .services.ffmpeg_utils import init_ffmpeg_paths
-from .api import projects, media, tts, render, system
+from .api import projects, media, tts, render, system, ai_video
 
 from .config import FRONTEND_DIST_DIR
 STATIC_FRONTEND_DIR = FRONTEND_DIST_DIR
@@ -38,6 +38,7 @@ app.include_router(media.router)
 app.include_router(tts.router)
 app.include_router(render.router)
 app.include_router(system.router)
+app.include_router(ai_video.router)
 
 @app.get("/api/health")
 def api_health():
