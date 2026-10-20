@@ -24,8 +24,9 @@ The starter reference (`pdf_to_reels_engine`) provided a basic proof-of-concept 
    - Actual duration of generated local voiceovers measured using FFprobe / wave analysis.
    - Scene duration dynamically computed as: `narration duration + end padding`.
    - Timestamps for subtitles and scene transitions precisely locked to speech boundaries.
-4. **100% Offline Local Speech (Zero Paid APIs)**:
-   - Automated discovery of all installed Windows SAPI voices (`pyttsx3`) with multi-voice selection (e.g., David, Zira).
+4. **Local Speech (Zero Paid APIs)**:
+   - Windows uses installed SAPI voices (`pyttsx3`); Linux and Render use eSpeak NG, which is installed in the Docker image.
+   - The voice panel discovers engines available on the running server and reports missing engines instead of showing a fake fallback voice.
    - Voice speed (WPM) and volume adjustments.
    - Audio caching to prevent redundant synthesis.
    - Support for custom audio file overrides per scene.
@@ -205,9 +206,15 @@ docker-compose up -d --build
 ```
 
 ### Important Technical Considerations for Hosted Mode:
-- **TTS Limitation:** Windows SAPI is a native Windows COM API and does not run on Linux. In hosted Linux environments, either use an offline neural engine (e.g. Piper/Edge-TTS) or upload custom audio files.
+- **TTS:** Windows SAPI is Windows-only. The provided Docker image installs eSpeak NG for Linux and Render, and existing projects that still say SAPI automatically use eSpeak NG on Linux. eSpeak NG is a lighter, more robotic voice than neural services; Piper can be used when its runtime and voice model are installed.
 - **Storage Persistence:** A persistent volume (`studio-data` mounted at `/app/backend/storage`) is required so SQLite projects, uploaded PDFs, and exported MP4s survive container redeployments.
 - **Background Renders:** The application utilizes background task rendering and status polling (`/api/render/status/{job_id}`) to ensure lengthy FFmpeg exports do not hit HTTP request timeouts.
+
+### Render setup
+
+Create a **Web Service** from this GitHub repository, select the **Docker** runtime, and build from the repository root so Render uses `Dockerfile`. Attach a persistent disk at `/app/backend/storage`, then deploy. After each push to the connected branch, Render rebuilds the Docker image and redeploys it. The Health / Diagnostics panel should show `eSpeak NG: Ready` on the Linux host. If it says `Not installed`, confirm the service is using the Docker runtime and redeploy the latest commit.
+
+The app currently has no user sign-in. Keep a public deployment behind an access-control layer until authentication is added; uploaded media and project exports are otherwise reachable through the app's API.
 
 ---
 
@@ -266,11 +273,10 @@ docker-compose up -d --build
 ## 8. Known Limitations & Technical Details
 
 1. **Local TTS Voice Quality**:
-   - The application relies on Windows SAPI voices (`pyttsx3`) by default to ensure 100% offline functionality without requiring paid API keys, internet connectivity, or GPU hardware.
-   - Quality depends on the voices installed in Windows (e.g. Microsoft David, Microsoft Zira). You can install additional natural Windows voices via **Windows Settings → Time & Language → Speech**.
-   - Custom recorded audio can be attached directly to any slide as a fallback.
+   - Windows uses Windows SAPI voices (`pyttsx3`); Linux hosts such as Render use eSpeak NG from the Docker image.
+   - Voice quality depends on the installed engine. eSpeak NG is compact and offline but sounds more synthetic than neural voices. Custom recorded audio can be attached directly to any slide as a fallback.
 2. **Word-Level Subtitle Alignment**:
-   - When using local SAPI engines without a phoneme acoustic model, word and sentence timestamps are proportionally estimated based on measured audio duration and punctuation cadence. The subtitle engine marks these as proportional and adjusts spacing accordingly.
+   - With local engines that do not provide word timings, subtitle timestamps are proportionally estimated from measured audio duration and punctuation cadence.
 3. **Render Times**:
    - Render times depend on CPU core count. The studio defaults to `-preset veryfast` for rapid compilation. Use `ultrafast` for near-instant preview rendering.
 

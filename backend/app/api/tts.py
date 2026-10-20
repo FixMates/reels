@@ -15,7 +15,7 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 class TTSPreviewRequest(BaseModel):
     text: str
-    engine: str = "sapi"
+    engine: Optional[str] = None
     voice_id: Optional[str] = None
     rate: int = 175
     volume: int = 100
@@ -23,6 +23,7 @@ class TTSPreviewRequest(BaseModel):
 
 class SceneTTSRequest(BaseModel):
     scene_id: str
+    voice_engine: Optional[str] = None
     voice_id: Optional[str] = None
     rate: Optional[int] = None
     volume: Optional[int] = None
@@ -43,7 +44,7 @@ def preview_voice(req: TTSPreviewRequest):
         res = generate_speech(
             text=req.text,
             output_path=out_audio,
-            engine=req.engine,
+            engine=req.engine or "sapi",
             voice_id=req.voice_id,
             rate=req.rate,
             volume=req.volume,
@@ -84,7 +85,7 @@ def generate_scene_voice(req: SceneTTSRequest):
     
     out_audio = audio_dir / f"scene_{req.scene_id[:8]}.wav"
     
-    engine = s.get("voice_override") or p.get("voice_engine", "sapi")
+    engine = req.voice_engine or s.get("voice_override") or p.get("voice_engine", "sapi")
     voice_id = req.voice_id or p.get("voice_id")
     rate = req.rate or int(p.get("voice_rate", 175))
     volume = req.volume or int(p.get("voice_volume", 100))
@@ -130,6 +131,7 @@ def generate_all_voices(project_id: str):
         
     scenes = p.get("scenes", [])
     updated_scenes = []
+    failures = []
     
     audio_dir = PROJECTS_DIR / project_id / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
@@ -169,5 +171,11 @@ def generate_all_voices(project_id: str):
             updated_scenes.append(up)
         except Exception as e:
             print(f"Error generating voice for scene {s['id']}: {e}")
+            failures.append({"scene_id": s["id"], "error": str(e)})
             
-    return {"ok": True, "generated_count": len(updated_scenes)}
+    return {
+        "ok": not failures,
+        "generated_count": len(updated_scenes),
+        "failed_count": len(failures),
+        "failures": failures
+    }

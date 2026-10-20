@@ -164,15 +164,18 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Failed to synthesize preview audio');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to synthesize preview audio');
+    }
     return res.json();
   },
 
-  async generateSceneVoice(sceneId: string, voiceId?: string, rate?: number, volume?: number): Promise<{ ok: boolean; scene: Scene; audio_url: string; duration: number }> {
+  async generateSceneVoice(sceneId: string, voiceId?: string, rate?: number, volume?: number, voiceEngine?: string): Promise<{ ok: boolean; scene: Scene; audio_url: string; duration: number }> {
     const res = await fetch(`${API_BASE}/tts/generate-scene`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scene_id: sceneId, voice_id: voiceId, rate, volume })
+      body: JSON.stringify({ scene_id: sceneId, voice_id: voiceId, rate, volume, voice_engine: voiceEngine })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -181,9 +184,12 @@ export const api = {
     return res.json();
   },
 
-  async generateAllVoices(projectId: string): Promise<{ ok: boolean; generated_count: number }> {
+  async generateAllVoices(projectId: string): Promise<{ ok: boolean; generated_count: number; failed_count: number; failures: Array<{ scene_id: string; error: string }> }> {
     const res = await fetch(`${API_BASE}/tts/generate-all/${projectId}`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to generate voices for project');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to generate voices for project');
+    }
     return res.json();
   },
 

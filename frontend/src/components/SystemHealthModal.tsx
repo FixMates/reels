@@ -84,15 +84,18 @@ export const SystemHealthModal: React.FC<SystemHealthModalProps> = ({
             <Volume2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-white">Local Text-to-Speech Engines</span>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-sky-500/20 text-sky-300">
-                  {health.tts.voices_count} Voices Ready
+                <span className="font-semibold text-white">Text-to-Speech Engines</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${health.tts.voices_count ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                  {health.tts.voices_count ? `${health.tts.voices_count} voices ready` : 'Unavailable'}
                 </span>
               </div>
               <div className="text-xs text-slate-300 mt-2 space-y-1">
+                {health.tts.sapi_available && <div className="flex items-center justify-between"><span>Windows SAPI:</span><span className="text-emerald-400 font-medium">Ready</span></div>}
                 <div className="flex items-center justify-between">
-                  <span>Windows SAPI (pyttsx3 Offline):</span>
-                  <span className="text-emerald-400 font-medium">Installed & Working</span>
+                  <span>eSpeak NG (Linux / Render):</span>
+                  <span className={health.tts.espeak_available ? "text-emerald-400 font-medium" : "text-slate-400"}>
+                    {health.tts.espeak_available ? "Ready" : "Not installed"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Piper Neural TTS (ONNX Engine):</span>
@@ -100,6 +103,7 @@ export const SystemHealthModal: React.FC<SystemHealthModalProps> = ({
                     {health.tts.piper_available ? "Ready" : "Models Optional"}
                   </span>
                 </div>
+                {!health.tts.voices_count && <p className="pt-2 text-rose-200">Install a speech engine in the server image, then redeploy. eSpeak NG is included in the Render Docker setup.</p>}
               </div>
             </div>
           </div>

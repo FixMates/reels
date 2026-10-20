@@ -165,7 +165,7 @@ export interface Project {
 export interface TTSVoice {
   id: string;
   name: string;
-  engine: 'sapi' | 'piper';
+  engine: 'sapi' | 'piper' | 'espeak';
   language: string;
   gender: string;
   is_default: boolean;
@@ -199,6 +199,9 @@ export interface SystemHealth {
     voices_count: number;
     sapi_available: boolean;
     piper_available: boolean;
+    espeak_available?: boolean;
+    available_engines?: string[];
+    available?: boolean;
     voices: TTSVoice[];
   };
   storage: {

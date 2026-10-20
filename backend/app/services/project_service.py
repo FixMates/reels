@@ -143,6 +143,9 @@ def scene_row_to_dict(row) -> Dict[str, Any]:
 def create_project(data: Dict[str, Any]) -> Dict[str, Any]:
     pid = uuid.uuid4().hex[:12]
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    voice_engine = data.get("voice_engine", "sapi")
+    if voice_engine == "sapi" and os.name != "nt":
+        voice_engine = "espeak"
     
     p_dir = PROJECTS_DIR / pid
     p_dir.mkdir(parents=True, exist_ok=True)
@@ -163,7 +166,7 @@ def create_project(data: Dict[str, Any]) -> Dict[str, Any]:
             int(data.get("width", 1080)),
             int(data.get("height", 1920)),
             int(data.get("fps", 30)),
-            data.get("voice_engine", "sapi"),
+            voice_engine,
             data.get("voice_id", ""),
             int(data.get("voice_rate", 175)),
             int(data.get("voice_volume", 100)),

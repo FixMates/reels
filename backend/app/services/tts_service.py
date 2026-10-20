@@ -1,6 +1,8 @@
 import os
 import sys
 import subprocess
+import shutil
+import platform
 import hashlib
 import json
 import threading
@@ -12,35 +14,67 @@ from ..config import CACHE_DIR, PIPER_DIR
 
 _TTS_LOCK = threading.Lock()
 
+
+def _espeak_binary() -> Optional[str]:
+    return shutil.which("espeak-ng") or shutil.which("espeak")
+
+
+def _list_espeak_voices(binary: str) -> List[Dict[str, Any]]:
+    try:
+        result = subprocess.run([binary, "--voices"], capture_output=True, text=True, timeout=10, check=True)
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    voices = []
+    for line in result.stdout.splitlines()[1:]:
+        columns = line.split()
+        if len(columns) < 5:
+            continue
+        language = columns[1]
+        # The language identifier (for example, en-us) is accepted by -v;
+        # the file column is an internal path and isn't a stable UI identifier.
+        voice_id = language
+        label = columns[3] if len(columns) > 3 else language
+        voices.append({
+            "id": voice_id,
+            "name": f"{label} (eSpeak NG)",
+            "engine": "espeak",
+            "language": language,
+            "gender": columns[2] if columns[2] in ("M", "F") else "unknown",
+            "is_default": voice_id in ("en-us", "en"),
+            "is_installed": True,
+            "quality": "standard"
+        })
+    return voices
+
 def get_available_voices() -> List[Dict[str, Any]]:
     voices = []
-    
-    # 1. Discover Windows SAPI voices via pyttsx3
-    try:
-        import pyttsx3
-        engine = pyttsx3.init()
-        sapi_voices = engine.getProperty("voices") or []
-        for idx, v in enumerate(sapi_voices):
-            v_id = getattr(v, "id", f"sapi_{idx}")
-            v_name = getattr(v, "name", f"Windows Voice {idx+1}")
-            langs = getattr(v, "languages", ["en-US"])
-            gender = getattr(v, "gender", "unknown")
-            voices.append({
-                "id": v_id,
-                "name": v_name,
-                "engine": "sapi",
-                "language": langs[0] if langs else "en-US",
-                "gender": str(gender),
-                "is_default": idx == 0,
-                "is_installed": True,
-                "quality": "standard"
-            })
+
+    if platform.system() == "Windows":
         try:
+            import pyttsx3
+            engine = pyttsx3.init()
+            sapi_voices = engine.getProperty("voices") or []
+            for idx, voice in enumerate(sapi_voices):
+                voice_id = getattr(voice, "id", f"sapi_{idx}")
+                langs = getattr(voice, "languages", ["en-US"])
+                voices.append({
+                    "id": voice_id,
+                    "name": getattr(voice, "name", f"Windows Voice {idx + 1}"),
+                    "engine": "sapi",
+                    "language": langs[0] if langs else "en-US",
+                    "gender": str(getattr(voice, "gender", "unknown")),
+                    "is_default": idx == 0,
+                    "is_installed": True,
+                    "quality": "standard"
+                })
             engine.stop()
-        except Exception:
-            pass
-    except Exception as e:
-        print(f"Warning: Error discovering SAPI voices: {e}")
+        except Exception as e:
+            print(f"Warning: Error discovering Windows voices: {e}")
+    else:
+        binary = _espeak_binary()
+        if binary:
+            voices.extend(_list_espeak_voices(binary))
         
     # 2. Check for Piper models in PIPER_DIR
     piper_models = list(PIPER_DIR.glob("*.onnx"))
@@ -54,19 +88,6 @@ def get_available_voices() -> List[Dict[str, Any]]:
             "is_default": False,
             "is_installed": True,
             "quality": "neural"
-        })
-
-    # If no voices discovered, provide at least a fallback descriptor
-    if not voices:
-        voices.append({
-            "id": "default",
-            "name": "System Default Voice",
-            "engine": "sapi",
-            "language": "en-US",
-            "gender": "unknown",
-            "is_default": True,
-            "is_installed": True,
-            "quality": "standard"
         })
 
     return voices
@@ -111,6 +132,29 @@ engine.stop()
     
     if not Path(output_path).exists() or Path(output_path).stat().st_size < 200:
         raise RuntimeError("TTS generation resulted in an empty audio file.")
+
+
+def _run_espeak(text: str, output_path: str | Path, voice_id: Optional[str], rate: int, volume: int):
+    binary = _espeak_binary()
+    if not binary:
+        raise RuntimeError("No speech engine is installed. Install eSpeak NG or select a voice engine supported by this host.")
+
+    available = _list_espeak_voices(binary)
+    available_ids = {voice["id"] for voice in available}
+    selected_voice = voice_id if voice_id in available_ids else ("en-us" if "en-us" in available_ids else None)
+    command = [binary]
+    if selected_voice:
+        command.extend(["-v", selected_voice])
+    command.extend(["-s", str(max(80, min(450, int(rate)))), "-a", str(max(0, min(200, int(volume)))), "-w", str(output_path), text])
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"eSpeak NG could not generate speech: {exc}") from exc
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown eSpeak NG error"
+        raise RuntimeError(f"eSpeak NG failed: {detail}")
+    if not Path(output_path).exists() or Path(output_path).stat().st_size < 200:
+        raise RuntimeError("eSpeak NG returned an empty audio file.")
 
 import re
 
@@ -182,10 +226,15 @@ def generate_speech(
             ]
             res = subprocess.run(cmd, input=effective_text, text=True, capture_output=True, timeout=30)
             if res.returncode != 0:
-                # Fallback to SAPI
-                _run_pyttsx3_worker(effective_text, str(cache_file), None, rate, volume)
+                if platform.system() == "Windows":
+                    _run_pyttsx3_worker(effective_text, str(cache_file), None, rate, volume)
+                else:
+                    _run_espeak(effective_text, cache_file, None, rate, volume)
+        elif platform.system() != "Windows":
+            # SAPI is Windows-only. Use the installed Linux speech engine when
+            # a local project is opened on a hosted Linux instance.
+            _run_espeak(effective_text, cache_file, voice_id, rate, volume)
         else:
-            # Default to SAPI (pyttsx3 worker)
             _run_pyttsx3_worker(effective_text, str(cache_file), voice_id, rate, volume)
 
     # Copy cached file to desired destination

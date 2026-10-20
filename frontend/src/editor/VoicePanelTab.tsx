@@ -24,45 +24,69 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isGeneratingCurrent, setIsGeneratingCurrent] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(true);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
 
   const scenes = project.scenes;
   const currentIdx = Math.max(0, scenes.findIndex(s => s.id === currentSceneId));
   const activeScene = scenes[currentIdx] || scenes[0];
+  const selectedVoiceConfig = voices.find(v => v.id === selectedVoice);
 
   useEffect(() => {
+    let cancelled = false;
+    setIsLoadingVoices(true);
+    setVoiceError(null);
     api.listVoices().then(vList => {
+      if (cancelled) return;
       setVoices(vList);
-      if (!selectedVoice && vList.length > 0) {
-        setSelectedVoice(vList[0].id);
-      }
-    }).catch(console.error);
-  }, []);
+      const persistedVoice = vList.find(v => v.id === project.voice_id);
+      const defaultVoice = vList.find(v => v.engine === project.voice_engine && v.is_default)
+        || vList.find(v => v.engine === project.voice_engine)
+        || vList.find(v => v.is_default)
+        || vList[0];
+      setSelectedVoice(persistedVoice?.id || defaultVoice?.id || '');
+      if (!vList.length) setVoiceError('No speech engine is available on this server. Install eSpeak NG or choose a supported hosted voice engine.');
+    }).catch((err: any) => {
+      if (!cancelled) setVoiceError(err.message || 'Could not load voices from the server.');
+    }).finally(() => {
+      if (!cancelled) setIsLoadingVoices(false);
+    });
+    return () => { cancelled = true; };
+  }, [project.id, project.voice_id, project.voice_engine]);
 
   const handleSaveSettings = async () => {
     try {
       const updated = await api.updateProject(project.id, {
         voice_id: selectedVoice,
+        voice_engine: selectedVoiceConfig?.engine || project.voice_engine,
         voice_rate: voiceRate,
         voice_volume: voiceVolume
       });
       onProjectUpdate(updated);
+      setVoiceNotice('Voice settings saved.');
+      setVoiceError(null);
     } catch (err: any) {
-      alert(`Error saving voice settings: ${err.message}`);
+      setVoiceError(`Could not save voice settings: ${err.message}`);
     }
   };
 
   const handlePreviewVoice = async () => {
     try {
       setIsPreviewing(true);
+      setVoiceError(null);
+      setVoiceNotice(null);
       const res = await api.previewTTS({
         text: previewText,
+        engine: selectedVoiceConfig?.engine || project.voice_engine,
         voice_id: selectedVoice || undefined,
         rate: voiceRate,
         volume: voiceVolume
       });
       setPreviewAudioUrl(res.audio_url);
+      setVoiceNotice(`Sample ready · ${res.duration.toFixed(1)} seconds`);
     } catch (err: any) {
-      alert(`Voice preview failed: ${err.message}`);
+      setVoiceError(`Voice preview failed: ${err.message}`);
     } finally {
       setIsPreviewing(false);
     }
@@ -75,11 +99,13 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
     }
     try {
       setIsGeneratingCurrent(true);
-      await api.generateSceneVoice(activeScene.id, selectedVoice || undefined, voiceRate, voiceVolume);
+      await api.generateSceneVoice(activeScene.id, selectedVoice || undefined, voiceRate, voiceVolume, selectedVoiceConfig?.engine || project.voice_engine);
       const updated = await api.getProject(project.id);
       onProjectUpdate(updated);
+      setVoiceNotice(`Voiceover generated for scene ${currentIdx + 1}.`);
+      setVoiceError(null);
     } catch (err: any) {
-      alert(`Failed to generate voice: ${err.message}`);
+      setVoiceError(`Voice generation failed: ${err.message}`);
     } finally {
       setIsGeneratingCurrent(false);
     }
@@ -90,15 +116,17 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
       setIsGeneratingAll(true);
       await api.updateProject(project.id, {
         voice_id: selectedVoice,
+        voice_engine: selectedVoiceConfig?.engine || project.voice_engine,
         voice_rate: voiceRate,
         voice_volume: voiceVolume
       });
       const res = await api.generateAllVoices(project.id);
       const updated = await api.getProject(project.id);
       onProjectUpdate(updated);
-      alert(`Synthesized voices for ${res.generated_count} slides!`);
+      setVoiceNotice(`Generated ${res.generated_count} voiceover${res.generated_count === 1 ? '' : 's'}${res.failed_count ? ` · ${res.failed_count} failed` : ''}.`);
+      setVoiceError(res.failures?.length ? `Some scenes failed: ${res.failures.slice(0, 2).map(f => f.error).join(' · ')}` : null);
     } catch (err: any) {
-      alert(`Failed to batch generate voices: ${err.message}`);
+      setVoiceError(`Batch generation failed: ${err.message}`);
     } finally {
       setIsGeneratingAll(false);
     }
@@ -111,9 +139,10 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
       await api.uploadAudioOverride(activeScene.id, file);
       const updated = await api.getProject(project.id);
       onProjectUpdate(updated);
-      alert('Custom audio file attached to slide!');
+      setVoiceNotice('Custom voice audio attached to this scene.');
+      setVoiceError(null);
     } catch (err: any) {
-      alert(`Custom audio upload failed: ${err.message}`);
+      setVoiceError(`Custom audio upload failed: ${err.message}`);
     }
   };
 
@@ -124,22 +153,37 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
         <div>
           <h3 className="font-heading font-bold text-white text-base flex items-center gap-2">
             <Mic className="w-5 h-5 text-sky-400" />
-            <span>Local Text-to-Speech Engine</span>
+            <span>Voice & Narration</span>
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            100% offline speech synthesis using installed Windows voices without API keys.
+            {isLoadingVoices ? 'Checking speech engines on this server…' : selectedVoiceConfig
+              ? `Ready · ${selectedVoiceConfig.name} · ${selectedVoiceConfig.engine.toUpperCase()}`
+              : 'Speech engine unavailable'}
           </p>
         </div>
 
         <button
           onClick={handleGenerateAll}
-          disabled={isGeneratingAll || project.scenes.length === 0}
+          disabled={isGeneratingAll || project.scenes.length === 0 || !voices.length || isLoadingVoices}
           className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-sky-500/20 disabled:opacity-50"
         >
           {isGeneratingAll ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
           <span>Generate All Voiceovers</span>
         </button>
       </div>
+
+      {(voiceError || voiceNotice) && (
+        <div role={voiceError ? 'alert' : 'status'} className={`rounded-xl border px-4 py-3 text-sm ${voiceError ? 'border-rose-500/40 bg-rose-500/10 text-rose-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+          {voiceError || voiceNotice}
+        </div>
+      )}
+
+      {!isLoadingVoices && !voices.length && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <strong className="block mb-1">No text-to-speech engine detected</strong>
+          <span className="text-amber-100/80">On Render, redeploy the Docker image after installing eSpeak NG. You can still attach recorded audio to each scene.</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Voice Engine Settings */}
@@ -151,6 +195,7 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
             </label>
             <select
               value={selectedVoice}
+              disabled={isLoadingVoices || !voices.length}
               onChange={e => {
                 setSelectedVoice(e.target.value);
               }}
@@ -162,6 +207,7 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
                   {v.name} ({v.language}) [{v.engine.toUpperCase()}]
                 </option>
               ))}
+              {!voices.length && <option value="">No voices available</option>}
             </select>
           </div>
 
@@ -178,7 +224,7 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
               step="5"
               value={voiceRate}
               onChange={e => setVoiceRate(parseInt(e.target.value))}
-              onMouseUp={handleSaveSettings}
+              onPointerUp={handleSaveSettings}
               className="w-full accent-sky-400"
             />
             <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
@@ -201,7 +247,7 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
               step="5"
               value={voiceVolume}
               onChange={e => setVoiceVolume(parseInt(e.target.value))}
-              onMouseUp={handleSaveSettings}
+              onPointerUp={handleSaveSettings}
               className="w-full accent-sky-400"
             />
           </div>
@@ -217,7 +263,7 @@ export const VoicePanelTab: React.FC<VoicePanelTabProps> = ({
             />
             <button
               onClick={handlePreviewVoice}
-              disabled={isPreviewing}
+              disabled={isPreviewing || !voices.length || !previewText.trim()}
               className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
             >
               {isPreviewing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}

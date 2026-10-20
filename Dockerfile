@@ -11,6 +11,7 @@ WORKDIR /app
 # Install system dependencies: FFmpeg, TrueType fonts, ALSA
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    espeak-ng \
     fonts-dejavu-core \
     fonts-freefont-ttf \
     curl \

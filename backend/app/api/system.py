@@ -16,12 +16,15 @@ def system_health() -> Dict[str, Any]:
     storage = get_storage_stats()
     
     return {
-        "status": "healthy" if ffmpeg_info["ffmpeg_available"] else "degraded",
+        "status": "healthy" if ffmpeg_info["ffmpeg_available"] and voices else "degraded",
         "ffmpeg": ffmpeg_info,
         "tts": {
             "voices_count": len(voices),
             "sapi_available": any(v.get("engine") == "sapi" for v in voices),
             "piper_available": any(v.get("engine") == "piper" for v in voices),
+            "espeak_available": any(v.get("engine") == "espeak" for v in voices),
+            "available_engines": sorted({v.get("engine") for v in voices if v.get("engine")}),
+            "available": bool(voices),
             "voices": voices
         },
         "storage": storage,
