@@ -1,27 +1,48 @@
-REELS IMAGE PROMPT — matched to this studio
+STUDIO-MATCHED IMAGE GENERATION PROMPT
 
-Create one standalone scene image for an educational short-form video.
+Use this prompt once per scene. Replace every bracketed field. Attach the other scene images as visual references when the image tool supports references.
 
-SCENE INPUTS
+SCENE
 Topic: [TOPIC]
-Scene number and purpose: [SCENE NUMBER + HOOK / CONTEXT / EXPLANATION / EXAMPLE / TAKEAWAY]
-Visual subject/action: [SPECIFIC VISUAL]
-Style and palette: [VISUAL STYLE + COLORS]
+Scene number and story job: [01–07 + HOOK / CONTEXT / CORE IDEA / DEMONSTRATION / INSIGHT / APPLICATION / CONCLUSION]
+One visual message: [WHAT THE VIEWER SHOULD UNDERSTAND AT A GLANCE]
+Main subject and action: [SUBJECT + ACTION]
+Visual style: [CINEMATIC PHOTO / EDITORIAL ILLUSTRATION / SCIENTIFIC 3D / OTHER]
+Palette and lighting: [COLORS + LIGHT]
+Continuity references: [DESCRIBE RECURRING CHARACTER, OBJECT, OR STYLE; OR NONE]
 
-CANVAS AND FIT
-- Portrait 9:16 composition, designed for a 1080 × 1920 export.
-- Compose as a full-frame background image. The editor scales this image to the 9:16 canvas; do not make a poster, framed print, phone mockup, collage, or image inside a border.
-- Keep the important subject and any essential visual detail in the central area: roughly x=8–78% and y=14–68% of the canvas. Keep the rightmost 20% and the bottom 30% visually quiet because platform controls and captions occupy them.
-- Preserve useful context to the edges so a small crop or scale adjustment does not cut off the subject. Avoid placing the subject right against an edge.
-- Leave the top 10% clear for the studio's uploaded logo and optional headline. Leave y=70–88% calm and low-detail for timed spoken captions. Leave the bottom 12% clear for the supporting caption and platform interface.
-- Make the scene readable on a phone. Use one clear focal subject, strong separation from the background, and a simple composition. Build the image around the visual idea, not around empty card-shaped UI.
+MAKE ONE IMAGE ONLY
+Create one finished, standalone background image for one scene in a vertical educational Instagram Reel. Do not create a video, storyboard, contact sheet, split screen, collage, presentation slide, poster, phone mockup, or framed picture.
 
-TEXT AND BRANDING
-- Do not render any words, letters, numbers, labels, captions, subtitles, logos, watermarks, UI, borders, or fake brand marks in the image. The studio adds the real headline, supporting caption, spoken subtitles, and uploaded logo as editable overlays.
-- Do not bake text into the background. No faux typography or pseudo-writing.
+CANVAS — MATCH THE STUDIO
+- Compose for a true portrait 9:16 video canvas, target 1080 × 1920 pixels.
+- Use the entire canvas as one continuous, edge-to-edge image. The scene must reach all four edges. No border, matte, inset image, empty bars, blank strips, fake letterboxing, or hard division into a top panel, image panel, and bottom panel.
+- The studio places editable headline, logo, spoken subtitles, and supporting caption over the image. Do not render any of those in the artwork. The underlying visual continues behind those overlays; there must be no gaps between the top headline area, central image, and lower caption area.
+- Match 9:16 at generation time. Do not solve a wrong aspect ratio by shrinking the picture into the middle or adding empty padding. Never stretch or squash the subject. If the image tool cannot create exact 9:16, use its closest tall portrait output and compose for a center crop; keep essential details away from the outer edges.
+- The app's default Fit mode preserves the whole source image over an ambient blurred full-frame background. A source that is already 9:16 gives the cleanest full-frame result. Do not rely on the app to enlarge a small centered subject.
 
-SCENE QUALITY
-- Create a topic-accurate, visually specific scene with [CINEMATIC REALISM / EDITORIAL ILLUSTRATION / SCIENTIFIC 3D / OTHER].
-- Keep lighting, camera language, color treatment, and visual identity consistent with the other scenes in this video, while changing the composition and action to match this scene's role.
-- Avoid clutter, tiny details, misleading diagrams, distorted objects, accidental duplicate subjects, and decorative elements that resemble text.
-- Return only the image, in portrait 9:16. If exact pixel output is supported, use 1080 × 1920. Do not include a contact sheet.
+INSTAGRAM-FIRST COMPOSITION
+Treat the artwork as a full-bleed moving-image background, not as content inside a safe-zone box. Keep the most important subject and visual evidence prominent in the central viewing area, approximately x=8–74% and y=20–67% of the canvas. This is a placement guide for the focal details, not a crop boundary: scene color, atmosphere, environment, and secondary detail should continue naturally behind it to every edge.
+
+The studio overlays are positioned approximately as follows on a 1080 × 1920 canvas:
+- Uploaded logo: top center or corner, within roughly y=2–9%.
+- Editable headline: upper area, around y=12–22%.
+- Spoken narration captions: lower-middle, centered around y=72%.
+- Editable supporting caption: lower area, around y=78–86%.
+- Instagram interaction controls: keep important details clear of roughly the rightmost 20%; account/caption controls can cover the lowest 10–15%.
+
+Keep the top 8% and lower 10% free of essential visual details. Keep the right 20% lower contrast and nonessential. In the headline and caption areas, preserve a continuous, quiet part of the scene—soft texture, darker ambient light, or a gentle natural gradient is good. Do not make these areas blank, flat, transparent, or separate colored panels. Do not put a face, key object, fine diagram label, or critical action behind the app's text. Place the principal visual where it remains clear between and around the overlays.
+
+Fill the space visually: use a large, readable subject, close or medium framing where appropriate, useful depth, and a background related to the topic. Do not leave oversized empty sky, walls, gradients, or margins. The main subject should not look like a tiny thumbnail floating in a large canvas.
+
+IMAGE CONTENT RULES
+- Show one clear idea for this scene. Use a specific, topic-accurate visual rather than generic decoration.
+- Keep recurring objects, characters, lighting, palette, materials, and camera language consistent with the other scenes, while changing viewpoint and composition enough to avoid repetition.
+- For diagrams, make the relationship large and visually obvious. Prefer simple accurate shapes and causal visual storytelling. Since editable text is added later, represent labels through position, color, shape, and arrows only when those can remain clear without words.
+- For software, use a large recognizable interface concept, but do not invent or falsely claim exact UI from a real product. Avoid tiny dashboards.
+- Use authentic context for history, geography, culture, science, health, and finance. Never imply fabricated data or evidence.
+- No words, letters, numbers, captions, subtitles, charts with text, pseudo-writing, watermarks, signatures, logos, brand marks, or decorative typography. No illegible interface text. The app adds the real text separately.
+- Avoid accidental duplicate people or objects, distorted anatomy, clutter, subject collisions with overlay areas, extreme edge placement, and misleading visual metaphors.
+
+DELIVERY
+Return only one image. Use portrait 9:16 and 1080 × 1920 if supported. Do not include a caption, border, prompt explanation, or contact sheet. If exact pixel dimensions are unavailable, do not claim they were achieved.
