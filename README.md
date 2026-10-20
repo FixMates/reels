@@ -58,6 +58,17 @@ From the dashboard, choose **Create Reel with Gemini**, enter a topic, and start
 
 Configure `GEMINI_API_KEY` on the server. For local use, copy `.env.example` to `.env` and paste the key in that file. For Cloud Run, store it in Secret Manager as `gemini-api-key` and grant the Cloud Run service identity access. The key stays server-side and is never entered into the browser. Optional `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` settings are documented in `.env.example`.
 
+### Firebase production deployment
+
+The Firebase deployment uses Firebase Hosting for the React app and Cloud Run for the FastAPI renderer. It stores project media and exports in a Cloud Storage bucket. The deployment script creates or reuses the dedicated `reels-studio` Hosting site, so it does not replace the project's existing default Hosting site.
+
+1. Install and authenticate the Google Cloud CLI and Firebase CLI (`gcloud auth login` and `firebase login`).
+2. In Google Cloud Console, enable Secret Manager for the project, create a secret named `gemini-api-key`, and add the Gemini API key as its latest version. Do not commit the key or put it in the deployment script.
+3. From the repository root, run `./firebase-deploy.ps1 -ProjectId earner-paytm-cash` in PowerShell.
+4. Open `https://reels-studio.web.app` after both Cloud Run and Hosting deploy successfully.
+
+Cloud Run is configured with one always-on instance because render progress and jobs currently live in process memory. This improves job stability but incurs ongoing Cloud Run, Cloud Storage, and Gemini API charges. The app currently has no sign-in; restrict access before sharing the public URL broadly.
+
 The process uses one text generation, seven image generations, local narration, and one render. Gemini API usage can incur charges. The app's job progress is held in server memory while processing; a server restart interrupts an active job. This app has no sign-in, so put a public deployment behind access control before enabling the generation endpoint.
 
 ### Option A: Launch with 1-Click Batch Script

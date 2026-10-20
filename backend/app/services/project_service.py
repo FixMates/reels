@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..database import get_connection
-from ..config import STORAGE_DIR, PROJECTS_DIR, ROOT_DIR
+from ..config import STORAGE_DIR, MEDIA_STORAGE_DIR, OUTPUT_DIR, PROJECTS_DIR, ROOT_DIR
 from .timeline_service import compute_timeline
 
 DEFAULT_SUBTITLE_STYLE: Dict[str, Any] = {
@@ -512,9 +512,11 @@ def get_storage_stats() -> Dict[str, Any]:
     conn.close()
 
     total_storage = get_dir_size(STORAGE_DIR)
+    if MEDIA_STORAGE_DIR != STORAGE_DIR:
+        total_storage += get_dir_size(MEDIA_STORAGE_DIR)
     work_storage = get_dir_size(STORAGE_DIR / "work")
     cache_storage = get_dir_size(STORAGE_DIR / "tts_cache")
-    exports_storage = get_dir_size(STORAGE_DIR / "exports")
+    exports_storage = get_dir_size(OUTPUT_DIR)
 
     return {
         "projects_count": p_count,

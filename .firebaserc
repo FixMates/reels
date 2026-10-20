@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "earner-paytm-cash"
+  },
+  "targets": {
+    "earner-paytm-cash": {
+      "hosting": {
+        "studioreels": [
+          "reels-studio"
+        ]
+      }
+    }
+  }
+}

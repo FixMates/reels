@@ -12,10 +12,12 @@ BACKEND_DIR = APP_DIR.parent
 ROOT_DIR = BACKEND_DIR.parent
 
 STORAGE_DIR = BACKEND_DIR / "storage"
-PROJECTS_DIR = STORAGE_DIR / "projects"
-OUTPUT_DIR = STORAGE_DIR / "exports"
+MEDIA_STORAGE_DIR = Path(os.environ.get("MEDIA_STORAGE_DIR", str(STORAGE_DIR)))
+MEDIA_BUCKET = os.environ.get("MEDIA_BUCKET", "").strip()
+PROJECTS_DIR = MEDIA_STORAGE_DIR / "projects"
+OUTPUT_DIR = MEDIA_STORAGE_DIR / "exports"
 WORK_DIR = STORAGE_DIR / "work"
-BGM_DIR = STORAGE_DIR / "bgm"
+BGM_DIR = MEDIA_STORAGE_DIR / "bgm"
 CACHE_DIR = STORAGE_DIR / "tts_cache"
 PIPER_DIR = STORAGE_DIR / "piper_models"
 FRONTEND_DIST_DIR = ROOT_DIR / "frontend" / "dist"

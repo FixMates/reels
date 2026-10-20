@@ -269,6 +269,7 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
         update_job_status(job_id, 90, "subtitles_mux", "Applying subtitles and finalizing MP4 container...")
         final_filename = f"reel_{project_id[:8]}_{int(time.time())}.mp4"
         final_output_path = OUTPUT_DIR / final_filename
+        local_final_path = job_dir / final_filename
         
         burn_subs = options.get("burn_subtitles", True) and bool(all_subtitles) and subtitle_style.get("burn_in", True)
         
@@ -285,7 +286,7 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
                 "-crf", str(options.get("crf", 21)),
                 "-c:a", "aac", "-b:a", "192k",
                 "-shortest", "-movflags", "+faststart",
-                str(final_output_path)
+                str(local_final_path)
             ]
         else:
             # Direct stream mux
@@ -296,23 +297,29 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
                 "-c:v", "copy",
                 "-c:a", "aac", "-b:a", "192k",
                 "-shortest", "-movflags", "+faststart",
-                str(final_output_path)
+                str(local_final_path)
             ]
             
         subprocess.run(cmd_final, check=True)
 
         # 10. Validate Final MP4 using FFprobe
         update_job_status(job_id, 98, "validation", "Validating video streams and integrity...")
-        if not final_output_path.exists() or final_output_path.stat().st_size < 1000:
+        if not local_final_path.exists() or local_final_path.stat().st_size < 1000:
             raise RuntimeError("Render failed: final MP4 is missing or corrupted.")
             
-        probe_data = probe_media_file(final_output_path)
+        probe_data = probe_media_file(local_final_path)
         streams = probe_data.get("streams", [])
         has_video = any(s.get("codec_type") == "video" for s in streams)
         has_audio = any(s.get("codec_type") == "audio" for s in streams)
         
         if not has_video:
             raise RuntimeError("Validation error: rendered file does not contain a video stream.")
+
+        # Encode locally for FFmpeg random-access writes, then copy the finished
+        # artifact into the configured persistent media store (for example GCS).
+        update_job_status(job_id, 99, "saving", "Saving the finished video to project storage...")
+        shutil.copy2(local_final_path, final_output_path)
+        output_size = final_output_path.stat().st_size
 
         # Save to SQLite export history
         conn = get_connection()
@@ -327,7 +334,7 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
                 total_duration,
                 f"{width}x{height}",
                 time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                final_output_path.stat().st_size,
+                output_size,
                 "success"
             )
         )
@@ -346,7 +353,7 @@ def render_worker(job_id: str, project_id: str, options: Dict[str, Any]):
             output_filename=final_filename,
             download_url=f"/api/exports/download/{final_filename}",
             video_duration=total_duration,
-            file_size_bytes=final_output_path.stat().st_size
+            file_size_bytes=output_size
         )
         
     except Exception as e:
