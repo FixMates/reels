@@ -56,7 +56,7 @@ The starter reference (`pdf_to_reels_engine`) provided a basic proof-of-concept 
 ### Automated Gemini Video Generation
 From the dashboard, choose **Create Reel with Gemini**, enter a topic, and start the workflow. Gemini creates a grounded seven-scene script and seven 9:16 scene images. The server fits images to exactly 1080 × 1920, adds editable top headlines and supporting captions, generates narration with the installed local TTS engine, and renders an MP4 with burned-in subtitles. The result opens in the studio for edits; the MP4 and copy package are available from the completion screen and project folder.
 
-Configure `GEMINI_API_KEY` on the server. For local use, copy `.env.example` to `.env` and paste the key in that file. For Render, add `GEMINI_API_KEY` under **Dashboard → your service → Environment**, then redeploy. The key stays server-side and is never entered into the browser. Optional `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` settings are documented in `.env.example`.
+Configure `GEMINI_API_KEY` on the server. For local use, copy `.env.example` to `.env` and paste the key in that file. For Cloud Run, store it in Secret Manager as `gemini-api-key` and grant the Cloud Run service identity access. The key stays server-side and is never entered into the browser. Optional `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` settings are documented in `.env.example`.
 
 The process uses one text generation, seven image generations, local narration, and one render. Gemini API usage can incur charges. The app's job progress is held in server memory while processing; a server restart interrupts an active job. This app has no sign-in, so put a public deployment behind access control before enabling the generation endpoint.
 
@@ -222,6 +222,20 @@ docker-compose up -d --build
 Create a **Web Service** from this GitHub repository, select the **Docker** runtime, and build from the repository root so Render uses `Dockerfile`. Attach a persistent disk at `/app/backend/storage`, then deploy. After each push to the connected branch, Render rebuilds the Docker image and redeploys it. The Health / Diagnostics panel should show `eSpeak NG: Ready` on the Linux host. If it says `Not installed`, confirm the service is using the Docker runtime and redeploy the latest commit.
 
 The app currently has no user sign-in. Keep a public deployment behind an access-control layer until authentication is added; uploaded media and project exports are otherwise reachable through the app's API.
+
+### Firebase Hosting and Cloud Run
+
+Firebase Hosting serves the React frontend; Cloud Run runs the Python/FastAPI, FFmpeg, and TTS backend. The Firebase Hosting rewrite in `firebase.json` connects `/api/**` to the `reels-api` Cloud Run service. `firebase-deploy.ps1` builds and deploys both parts, and uses the Cloud Run URL directly for API and media calls so uploads and MP4 downloads do not pass through Hosting's 60-second proxy timeout.
+
+Prerequisites: a selected Firebase project on the Blaze plan, Firebase CLI, Google Cloud CLI, Cloud Run and Cloud Build APIs enabled, and a Secret Manager secret named `gemini-api-key`. After setting up the project and secret, deploy with:
+
+```powershell
+gcloud auth login
+firebase login
+.\firebase-deploy.ps1 -ProjectId YOUR_FIREBASE_PROJECT_ID
+```
+
+**Storage migration is required before production use.** This app stores SQLite and project/media files under `backend/storage`. Cloud Run's local filesystem is ephemeral, and Cloud Storage volume mounts do not support SQLite locking. The current Firebase deployment script is for setup/validation; migrate metadata to a managed database and media/exports to durable object storage before storing production projects.
 
 ---
 

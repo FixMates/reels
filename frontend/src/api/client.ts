@@ -1,6 +1,22 @@
 import { Project, Scene, TTSVoice, RenderStatus, SystemHealth, ExportRecord } from '../types/project';
 
-const API_BASE = '/api';
+const configuredApiBase = String((import.meta as any).env?.VITE_API_BASE || '').replace(/\/$/, '');
+const API_BASE = configuredApiBase || '/api';
+const API_ORIGIN = configuredApiBase.replace(/\/api$/, '');
+
+function normalizeApiUrls<T>(value: T): T {
+  if (!API_ORIGIN) return value;
+  if (typeof value === 'string') return (value.startsWith('/api/') ? `${API_ORIGIN}${value}` : value) as T;
+  if (Array.isArray(value)) return value.map(normalizeApiUrls) as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeApiUrls(item)])) as T;
+  }
+  return value;
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  return normalizeApiUrls(await response.json() as T);
+}
 
 export interface AIVideoJob {
   job_id: string;
@@ -25,39 +41,39 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Could not start AI video generation');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   async getAIVideoStatus(jobId: string): Promise<AIVideoJob> {
     const res = await fetch(`${API_BASE}/ai-video/status/${jobId}`);
     if (!res.ok) throw new Error('Could not retrieve AI video progress');
-    return res.json();
+    return parseResponse(res);
   },
 
   // System Health
   async getSystemHealth(): Promise<SystemHealth> {
     const res = await fetch(`${API_BASE}/system/health`);
     if (!res.ok) throw new Error('Failed to fetch system health');
-    return res.json();
+    return parseResponse(res);
   },
 
   async clearTempFiles(): Promise<{ ok: boolean; bytes_freed: number; mb_freed: number }> {
     const res = await fetch(`${API_BASE}/system/clear-temp`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to clear temporary files');
-    return res.json();
+    return parseResponse(res);
   },
 
   // Projects CRUD
   async getProjects(): Promise<Project[]> {
     const res = await fetch(`${API_BASE}/projects`);
     if (!res.ok) throw new Error('Failed to fetch projects');
-    return res.json();
+    return parseResponse(res);
   },
 
   async getProject(id: string): Promise<Project> {
     const res = await fetch(`${API_BASE}/projects/${id}`);
     if (!res.ok) throw new Error('Project not found');
-    return res.json();
+    return parseResponse(res);
   },
 
   async createProject(data: Partial<Project>): Promise<Project> {
@@ -67,7 +83,7 @@ export const api = {
       body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error('Failed to create project');
-    return res.json();
+    return parseResponse(res);
   },
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
@@ -77,13 +93,13 @@ export const api = {
       body: JSON.stringify(updates)
     });
     if (!res.ok) throw new Error('Failed to update project');
-    return res.json();
+    return parseResponse(res);
   },
 
   async duplicateProject(id: string): Promise<Project> {
     const res = await fetch(`${API_BASE}/projects/${id}/duplicate`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to duplicate project');
-    return res.json();
+    return parseResponse(res);
   },
 
   async deleteProject(id: string): Promise<boolean> {
@@ -110,13 +126,13 @@ export const api = {
       body: JSON.stringify(updates)
     });
     if (!res.ok) throw new Error('Failed to update scene');
-    return res.json();
+    return parseResponse(res);
   },
 
   async duplicateScene(sceneId: string): Promise<Scene> {
     const res = await fetch(`${API_BASE}/scenes/${sceneId}/duplicate`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to duplicate scene');
-    return res.json();
+    return parseResponse(res);
   },
 
   async deleteScene(sceneId: string): Promise<boolean> {
@@ -135,7 +151,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to upload PDF');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   async uploadImages(projectId: string, files: File[]): Promise<{ ok: boolean; scenes: Scene[]; images_imported: number }> {
@@ -147,7 +163,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to upload images');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   async uploadLogo(projectId: string, file: File): Promise<{ ok: boolean; logo_url: string }> {
@@ -156,7 +172,7 @@ export const api = {
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/media/upload-logo`, { method: 'POST', body: formData });
     if (!res.ok) throw new Error('Failed to upload logo');
-    return res.json();
+    return parseResponse(res);
   },
 
   async uploadBGM(file: File): Promise<{ ok: boolean; filename: string; duration: number }> {
@@ -164,13 +180,13 @@ export const api = {
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/media/upload-bgm`, { method: 'POST', body: formData });
     if (!res.ok) throw new Error('Failed to upload background music');
-    return res.json();
+    return parseResponse(res);
   },
 
   async listBGM(): Promise<{ filename: string; duration: number; url: string }[]> {
     const res = await fetch(`${API_BASE}/media/bgm-list`);
     if (!res.ok) throw new Error('Failed to list BGM');
-    return res.json();
+    return parseResponse(res);
   },
 
   async uploadAudioOverride(sceneId: string, file: File): Promise<{ ok: boolean; scene: Scene }> {
@@ -179,14 +195,14 @@ export const api = {
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/media/upload-audio-override`, { method: 'POST', body: formData });
     if (!res.ok) throw new Error('Failed to upload custom audio');
-    return res.json();
+    return parseResponse(res);
   },
 
   // TTS
   async listVoices(): Promise<TTSVoice[]> {
     const res = await fetch(`${API_BASE}/tts/voices`);
     if (!res.ok) throw new Error('Failed to discover TTS voices');
-    return res.json();
+    return parseResponse(res);
   },
 
   async previewTTS(data: { text: string; engine?: string; voice_id?: string; rate?: number; volume?: number }): Promise<{ ok: boolean; duration: number; audio_url: string }> {
@@ -199,7 +215,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to synthesize preview audio');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   async generateSceneVoice(sceneId: string, voiceId?: string, rate?: number, volume?: number, voiceEngine?: string): Promise<{ ok: boolean; scene: Scene; audio_url: string; duration: number }> {
@@ -212,7 +228,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'TTS generation failed');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   async generateAllVoices(projectId: string): Promise<{ ok: boolean; generated_count: number; failed_count: number; failures: Array<{ scene_id: string; error: string }> }> {
@@ -221,7 +237,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to generate voices for project');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   // Rendering
@@ -235,13 +251,13 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to trigger render');
     }
-    return res.json();
+    return parseResponse(res);
   },
 
   async getRenderStatus(jobId: string): Promise<RenderStatus> {
     const res = await fetch(`${API_BASE}/render/status/${jobId}`);
     if (!res.ok) throw new Error('Failed to get render status');
-    return res.json();
+    return parseResponse(res);
   },
 
   async cancelRender(jobId: string): Promise<boolean> {
@@ -252,6 +268,6 @@ export const api = {
   async getExports(): Promise<ExportRecord[]> {
     const res = await fetch(`${API_BASE}/exports`);
     if (!res.ok) throw new Error('Failed to fetch exports history');
-    return res.json();
+    return parseResponse(res);
   }
 };
